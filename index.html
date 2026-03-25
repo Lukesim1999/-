@@ -8,6 +8,9 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>축의금 접수</title>
+  <!-- Firebase SDK (compat mode) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
@@ -144,6 +147,30 @@
     .settings-chip-edit:hover { color: #2d5a8e; }
     .chip-edit-input { border: 1.5px solid #2d5a8e; border-radius: 20px; padding: 4px 10px; font-size: 13px; outline: none; width: 90px; }
 
+    /* ── Room Entry Screen ── */
+    .room-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: linear-gradient(135deg, #2d5a8e 0%, #1a3a5c 100%); color: white; padding: 24px; }
+    .room-logo { font-size: 56px; margin-bottom: 12px; }
+    .room-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .room-subtitle { font-size: 14px; opacity: 0.75; margin-bottom: 36px; }
+    .room-card { background: white; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 360px; color: #222; }
+    .room-card-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: #333; text-align: center; }
+    .room-input { width: 100%; padding: 13px 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 18px; text-align: center; letter-spacing: 6px; font-weight: 600; margin-bottom: 12px; }
+    .room-input:focus { outline: none; border-color: #2d5a8e; }
+    .room-input::placeholder { letter-spacing: 0; font-weight: 400; font-size: 14px; }
+    .btn-room { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 8px; transition: background 0.15s; }
+    .btn-room-create { background: #2d5a8e; color: white; }
+    .btn-room-create:active { background: #1e3f63; }
+    .btn-room-join { background: #388e3c; color: white; }
+    .btn-room-join:active { background: #2e7d32; }
+    .btn-room-join:disabled { background: #ccc; cursor: default; }
+    .room-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: #aaa; font-size: 13px; }
+    .room-divider::before, .room-divider::after { content: ''; flex: 1; height: 1px; background: #e0e0e0; }
+    .room-code-display { background: #f5f5f5; border-radius: 8px; padding: 10px; text-align: center; font-size: 13px; color: #666; margin-top: 8px; }
+    .room-code-display code { font-size: 18px; font-weight: 700; color: #2d5a8e; letter-spacing: 4px; }
+    .room-info-bar { background: #e8f0fb; color: #2d5a8e; padding: 8px 16px; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: space-between; }
+    .room-info-bar button { background: none; border: none; color: #c00; font-size: 12px; cursor: pointer; padding: 4px 8px; }
+    .sync-status { font-size: 11px; margin-top: 3px; opacity: 0.85; }
+
     /* ════════════ MOBILE (< 768px) ════════════ */
     @media (max-width: 767px) {
       .tabs { display: flex; background: white; border-bottom: 1px solid #e0e0e0; position: sticky; top: 0; z-index: 10; }
@@ -198,6 +225,30 @@
 </head>
 <body>
 
+  <!-- ══ Room Entry Screen ══ -->
+  <div id="roomScreen" class="room-screen">
+    <div class="room-logo">💍</div>
+    <div class="room-title">축의금 접수</div>
+    <div class="room-subtitle">실시간 공유 접수 시스템</div>
+    <div class="room-card">
+      <div class="room-card-title">새 방 만들기</div>
+      <button class="btn-room btn-room-create" onclick="createRoom()">새 방 만들기</button>
+      <div class="room-divider">또는</div>
+      <div class="room-card-title">기존 방 참가</div>
+      <input type="text" class="room-input" id="roomCodeInput" placeholder="방 코드 입력" maxlength="6"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
+        onkeydown="if(event.key==='Enter') joinRoom()">
+      <button class="btn-room btn-room-join" id="btnJoinRoom" onclick="joinRoom()">참가하기</button>
+    </div>
+    <div class="room-code-display" id="lastRoomInfo" style="display:none">
+      최근 접속한 방: <code id="lastRoomCode"></code>
+      <br><button class="btn-room btn-room-join" style="margin-top:10px;font-size:13px;padding:10px" onclick="rejoinLastRoom()">다시 입장하기</button>
+    </div>
+  </div>
+
+  <!-- ══ Main App (hidden until room joined) ══ -->
+  <div id="mainApp" style="display:none">
+
   <!-- ── Header ── -->
   <div class="header">
     <div class="header-left">
@@ -208,7 +259,12 @@
       <div class="header-total" id="headerTotal">0만원</div>
       <div class="header-count" id="headerCount">총 0건</div>
       <div class="save-status" id="saveStatus">🟢 저장됨</div>
+      <div class="sync-status" id="syncStatus"></div>
     </div>
+  </div>
+  <div class="room-info-bar" id="roomInfoBar" style="display:none">
+    <span>방 코드: <strong id="currentRoomDisplay"></strong></span>
+    <button onclick="leaveRoom()">나가기</button>
   </div>
   <div class="secret-banner" id="secretBanner" style="display:none">⚠️ 시크릿 모드에서는 데이터가 저장되지 않습니다</div>
 
@@ -369,12 +425,267 @@
     </div>
   </div>
 
+  </div><!-- /mainApp -->
+
   <script>
     // ── PWA: Service Worker 등록 ─────────────────────────
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('service-worker.js').catch(() => {});
       });
+    }
+
+    // ══════════════════════════════════════════════════════
+    // ── Firebase 설정 (플레이스홀더 — Firebase Console에서 발급받은 값으로 교체) ──
+    // ══════════════════════════════════════════════════════
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    let firebaseApp = null;
+    let db = null;
+    let firestoreReady = false;
+    let currentRoomCode = null;
+    let unsubscribeSnapshot = null;
+    let isOnline = navigator.onLine;
+    const ROOM_KEY = 'chukuigeum_room_code';
+
+    // Firebase 초기화
+    function initFirebase() {
+      try {
+        if (firebaseConfig.apiKey === 'YOUR_API_KEY') {
+          console.warn('[Firebase] firebaseConfig가 플레이스홀더입니다. Firebase Console에서 발급받은 값으로 교체하세요.');
+          return false;
+        }
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        // 오프라인 persistence 활성화
+        db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+          if (err.code === 'failed-precondition') {
+            console.warn('[Firebase] 여러 탭이 열려 있어 오프라인 persistence를 사용할 수 없습니다.');
+          } else if (err.code === 'unimplemented') {
+            console.warn('[Firebase] 이 브라우저는 오프라인 persistence를 지원하지 않습니다.');
+          }
+        });
+        firestoreReady = true;
+        return true;
+      } catch (e) {
+        console.error('[Firebase] 초기화 실패:', e);
+        return false;
+      }
+    }
+
+    // 네트워크 상태 감지
+    window.addEventListener('online', () => { isOnline = true; updateSyncStatus(); });
+    window.addEventListener('offline', () => { isOnline = false; updateSyncStatus(); });
+
+    function updateSyncStatus() {
+      const el = document.getElementById('syncStatus');
+      if (!el) return;
+      if (!firestoreReady || !currentRoomCode) {
+        el.textContent = '';
+        return;
+      }
+      el.textContent = isOnline ? '🟢 동기화됨' : '🔴 오프라인';
+    }
+
+    // ── 방 코드 생성 ──────────────────────────────────────
+    function generateRoomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 문자 제외 (0,O,1,I)
+      let code = '';
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    async function createRoom() {
+      if (!firestoreReady) {
+        showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
+        return;
+      }
+      const code = generateRoomCode();
+      try {
+        // Firestore에 이벤트(방) 문서 생성
+        await db.collection('events').doc(code).set({
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          code: code
+        });
+        enterRoom(code);
+      } catch (e) {
+        console.error('[Room] 방 생성 실패:', e);
+        showRoomToast('방 생성에 실패했습니다. 네트워크를 확인하세요.');
+      }
+    }
+
+    async function joinRoom() {
+      if (!firestoreReady) {
+        showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
+        return;
+      }
+      const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+      if (code.length !== 6) {
+        showRoomToast('6자리 방 코드를 입력해주세요.');
+        return;
+      }
+      try {
+        const doc = await db.collection('events').doc(code).get();
+        if (!doc.exists) {
+          showRoomToast('존재하지 않는 방 코드입니다.');
+          return;
+        }
+        enterRoom(code);
+      } catch (e) {
+        console.error('[Room] 참가 실패:', e);
+        showRoomToast('방 참가에 실패했습니다. 네트워크를 확인하세요.');
+      }
+    }
+
+    function rejoinLastRoom() {
+      const code = localStorage.getItem(ROOM_KEY);
+      if (code) enterRoom(code);
+    }
+
+    function enterRoom(code) {
+      currentRoomCode = code;
+      localStorage.setItem(ROOM_KEY, code);
+      // 방 코드 표시
+      document.getElementById('currentRoomDisplay').textContent = code;
+      document.getElementById('roomInfoBar').style.display = 'flex';
+      // 화면 전환
+      document.getElementById('roomScreen').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'block';
+      // 앱 초기화
+      init();
+      // Firestore 실시간 구독 시작
+      startFirestoreSync();
+      updateSyncStatus();
+    }
+
+    function leaveRoom() {
+      if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      currentRoomCode = null;
+      localStorage.removeItem(ROOM_KEY);
+      document.getElementById('roomInfoBar').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'none';
+      document.getElementById('roomScreen').style.display = 'flex';
+      document.getElementById('syncStatus').textContent = '';
+      // 최근 방 표시 업데이트
+      checkLastRoom();
+    }
+
+    function showRoomToast(msg) {
+      // 방 입장 화면에서의 간단한 알림 (alert 사용)
+      alert(msg);
+    }
+
+    // Firestore 실시간 동기화
+    function startFirestoreSync() {
+      if (!firestoreReady || !currentRoomCode) return;
+      if (unsubscribeSnapshot) { unsubscribeSnapshot(); }
+
+      const recordsRef = db.collection('events').doc(currentRoomCode).collection('records');
+
+      unsubscribeSnapshot = recordsRef.onSnapshot(snapshot => {
+        const syncEl = document.getElementById('syncStatus');
+
+        // snapshot에서 전체 레코드 재구성
+        const firestoreRecords = [];
+        snapshot.forEach(doc => {
+          firestoreRecords.push({ ...doc.data(), _docId: doc.id });
+        });
+
+        // Firestore 데이터로 records 교체
+        records = firestoreRecords.map(r => ({
+          id: r.id || parseInt(r._docId),
+          name: r.name || '',
+          affiliation: r.affiliation || '',
+          amount: r.amount || 0,
+          side: r.side || '신랑',
+          memo: r.memo || '',
+          createdAt: r.createdAt || new Date().toISOString()
+        }));
+
+        // 최신순 정렬
+        records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        // localStorage 백업
+        localStorage.setItem(DATA_KEY, JSON.stringify(records));
+
+        // UI 갱신
+        updateAll();
+
+        if (syncEl) syncEl.textContent = isOnline ? '🟢 동기화됨' : '🔴 오프라인';
+      }, err => {
+        console.error('[Firestore] onSnapshot 에러:', err);
+        const syncEl = document.getElementById('syncStatus');
+        if (syncEl) syncEl.textContent = '🔴 동기화 오류';
+      });
+    }
+
+    // Firestore에 레코드 저장
+    async function saveToFirestore(record) {
+      if (!firestoreReady || !currentRoomCode) return;
+      try {
+        const syncEl = document.getElementById('syncStatus');
+        if (syncEl) syncEl.textContent = '🟡 동기화 중...';
+        await db.collection('events').doc(currentRoomCode).collection('records')
+          .doc(String(record.id)).set({
+            id: record.id,
+            name: record.name,
+            affiliation: record.affiliation || '',
+            amount: record.amount,
+            side: record.side,
+            memo: record.memo || '',
+            createdAt: record.createdAt
+          });
+      } catch (e) {
+        console.error('[Firestore] 저장 실패:', e);
+      }
+    }
+
+    // Firestore에서 레코드 삭제
+    async function deleteFromFirestore(recordId) {
+      if (!firestoreReady || !currentRoomCode) return;
+      try {
+        await db.collection('events').doc(currentRoomCode).collection('records')
+          .doc(String(recordId)).delete();
+      } catch (e) {
+        console.error('[Firestore] 삭제 실패:', e);
+      }
+    }
+
+    // Firestore에 레코드 업데이트
+    async function updateInFirestore(record) {
+      if (!firestoreReady || !currentRoomCode) return;
+      try {
+        const syncEl = document.getElementById('syncStatus');
+        if (syncEl) syncEl.textContent = '🟡 동기화 중...';
+        await db.collection('events').doc(currentRoomCode).collection('records')
+          .doc(String(record.id)).update({
+            name: record.name,
+            affiliation: record.affiliation || '',
+            amount: record.amount,
+            side: record.side,
+            memo: record.memo || ''
+          });
+      } catch (e) {
+        console.error('[Firestore] 업데이트 실패:', e);
+      }
+    }
+
+    // 최근 방 코드 확인 (입장 화면 로딩 시)
+    function checkLastRoom() {
+      const lastCode = localStorage.getItem(ROOM_KEY);
+      if (lastCode) {
+        document.getElementById('lastRoomInfo').style.display = 'block';
+        document.getElementById('lastRoomCode').textContent = lastCode;
+      } else {
+        document.getElementById('lastRoomInfo').style.display = 'none';
+      }
     }
 
     // ── 스토리지 키 ─────────────────────────────────────
@@ -683,8 +994,10 @@
         return;
       }
 
-      records.unshift({ id: Date.now(), name, affiliation, amount, side: currentSide, memo, createdAt: new Date().toISOString() });
+      const newRecord = { id: Date.now(), name, affiliation, amount, side: currentSide, memo, createdAt: new Date().toISOString() };
+      records.unshift(newRecord);
       saveData();
+      saveToFirestore(newRecord);
       updateAll();
       resetForm(prefix);
       showToast(`${name}님 ${amount}만원 저장 완료`);
@@ -888,6 +1201,8 @@
           records = [...records, ...newRecords];
           if (data.settings) settings = { ...settings, ...data.settings };
           saveData(); saveSettings(); renderForms(); updateAll();
+          // Firestore에도 새 레코드 동기화
+          newRecords.forEach(r => saveToFirestore(r));
           showToast(`복원 완료 (${newRecords.length}건 추가)`);
         } catch { showToast('파일을 읽을 수 없습니다'); }
       };
@@ -919,7 +1234,13 @@
       if (!name) { showToast('이름을 입력해주세요'); return; }
       if (!amount || amount <= 0) { showToast('금액을 입력해주세요'); return; }
       const idx = records.findIndex(r => r.id === editingId);
-      if (idx !== -1) { records[idx] = { ...records[idx], name, affiliation, amount, side: editingSide, memo }; saveData(); updateAll(); showToast('수정 완료'); }
+      if (idx !== -1) {
+        records[idx] = { ...records[idx], name, affiliation, amount, side: editingSide, memo };
+        saveData();
+        updateInFirestore(records[idx]);
+        updateAll();
+        showToast('수정 완료');
+      }
       closeModal('editModal');
     }
 
@@ -933,7 +1254,9 @@
     function confirmDelete() {
       deletedItem = records.find(r => r.id === deletingId);
       records     = records.filter(r => r.id !== deletingId);
-      saveData(); updateAll();
+      saveData();
+      deleteFromFirestore(deletingId);
+      updateAll();
       closeModal('deleteModal');
       showUndoToast('삭제했습니다');
     }
@@ -942,6 +1265,7 @@
       if (!deletedItem) return;
       clearTimeout(undoTimer);
       records.unshift(deletedItem);
+      saveToFirestore(deletedItem);
       deletedItem = null;
       saveData(); updateAll();
       hideToast();
@@ -1086,7 +1410,56 @@
     function formatDate()    { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
     function esc(str)        { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-    init();
+    // ══════════════════════════════════════════════════════
+    // ── 앱 시작 ──────────────────────────────────────────
+    // ══════════════════════════════════════════════════════
+    (function startApp() {
+      // Firebase 초기화
+      initFirebase();
+
+      // 최근 방 코드 확인
+      checkLastRoom();
+
+      // 저장된 방 코드가 있으면 자동 입장
+      const savedRoom = localStorage.getItem(ROOM_KEY);
+      if (savedRoom && firestoreReady) {
+        // 방 존재 여부 확인 후 입장 (비동기)
+        db.collection('events').doc(savedRoom).get().then(doc => {
+          if (doc.exists) {
+            enterRoom(savedRoom);
+          } else {
+            // 방이 삭제됨 — 입장 화면 유지
+            localStorage.removeItem(ROOM_KEY);
+            checkLastRoom();
+          }
+        }).catch(() => {
+          // 오프라인이면 로컬 데이터로 일단 입장
+          if (!navigator.onLine) {
+            enterRoom(savedRoom);
+          }
+        });
+      } else if (!firestoreReady) {
+        // Firebase 미설정 시 — 로컬 전용 모드로 바로 입장
+        document.getElementById('roomScreen').innerHTML = `
+          <div class="room-logo">💍</div>
+          <div class="room-title">축의금 접수</div>
+          <div class="room-subtitle">로컬 전용 모드</div>
+          <div class="room-card">
+            <div style="text-align:center;color:#666;font-size:14px;margin-bottom:16px;">
+              Firebase 설정이 필요합니다.<br>
+              <code style="font-size:12px;color:#999;">firebaseConfig</code>에 올바른 값을 입력하면<br>실시간 동기화가 활성화됩니다.
+            </div>
+            <button class="btn-room btn-room-create" onclick="enterLocalMode()">로컬 모드로 시작</button>
+          </div>
+        `;
+      }
+    })();
+
+    function enterLocalMode() {
+      document.getElementById('roomScreen').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'block';
+      init();
+    }
   </script>
 </body>
 </html>

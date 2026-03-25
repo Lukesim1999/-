@@ -1,9 +1,12 @@
-const CACHE_NAME = 'chukuigeum-cache-v2';
+const CACHE_NAME = 'chukuigeum-cache-v3';
 const URLS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  // Firebase SDK (compat)
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js'
 ];
 
 self.addEventListener('install', event => {
@@ -33,4 +36,3 @@ self.addEventListener('fetch', event => {
     })
   );
 });
-
