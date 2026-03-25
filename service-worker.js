@@ -1,8 +1,9 @@
-const CACHE_NAME = 'chukuigeum-cache-v1';
+const CACHE_NAME = 'chukuigeum-cache-v2';
 const URLS_TO_CACHE = [
   './',
-  './축의금접수.html',
-  './manifest.json'
+  './index.html',
+  './manifest.json',
+  './icon.svg'
 ];
 
 self.addEventListener('install', event => {

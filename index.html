@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#2d5a8e">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>축의금 접수</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+
+    /* ── Header ── */
+    .header { background: #2d5a8e; color: white; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-title { font-size: 16px; font-weight: 700; }
+    .btn-settings { background: rgba(255,255,255,0.15); border: none; color: white; width: 34px; height: 34px; border-radius: 8px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-settings:hover { background: rgba(255,255,255,0.25); }
+    .header-right { text-align: right; flex-shrink: 0; }
+    .header-total { font-size: 22px; font-weight: 700; line-height: 1; }
+    .header-count { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+    .save-status { font-size: 11px; margin-top: 3px; opacity: 0.85; }
+    .secret-banner { background: #e65100; color: white; text-align: center; padding: 8px 16px; font-size: 13px; font-weight: 500; }
+    .lock-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 260px; gap: 14px; }
+    .lock-icon { font-size: 48px; }
+    .lock-title { font-size: 15px; color: #555; font-weight: 600; }
+    .lock-input { padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 16px; text-align: center; width: 160px; letter-spacing: 4px; }
+    .lock-input:focus { outline: none; border-color: #2d5a8e; }
+    .lock-btn { padding: 11px 32px; background: #2d5a8e; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+
+    /* ── Form ── */
+    .form-group { margin-bottom: 13px; }
+    .form-label { font-size: 13px; color: #555; margin-bottom: 6px; display: block; font-weight: 500; }
+    .form-label .optional { color: #bbb; font-weight: 400; }
+    .form-input { width: 100%; padding: 11px 12px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 15px; background: white; }
+    .form-input:focus { outline: none; border-color: #2d5a8e; }
+
+    .side-toggle { display: flex; background: #f0f0f0; border-radius: 8px; padding: 4px; gap: 4px; }
+    .side-btn { flex: 1; padding: 10px; text-align: center; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; transition: all 0.15s; user-select: none; }
+    .side-btn.active-groom { background: #2d5a8e; color: white; }
+    .side-btn.active-bride { background: #b5397a; color: white; }
+
+    .affil-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 10px; }
+    .affil-tag { padding: 6px 12px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; cursor: pointer; background: white; color: #555; user-select: none; transition: all 0.15s; }
+    .affil-tag.selected { border-color: #2d5a8e; background: #e8f0fb; color: #2d5a8e; font-weight: 600; }
+    .affil-tags-empty { font-size: 12px; color: #bbb; padding: 4px 0; }
+
+    .amount-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 8px; }
+    .preset-btn { padding: 11px 2px; text-align: center; border: 1.5px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: #333; background: white; transition: all 0.15s; user-select: none; }
+    .preset-btn.selected { border-color: #2d5a8e; background: #e8f0fb; color: #2d5a8e; }
+    .amount-input-wrap { display: flex; align-items: center; gap: 8px; }
+    .amount-input-wrap .form-input { flex: 1; }
+    .amount-unit { font-size: 15px; color: #555; white-space: nowrap; }
+
+    .btn-submit { width: 100%; padding: 14px; background: #2d5a8e; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 4px; transition: background 0.15s; }
+    .btn-submit:active { background: #1e3f63; }
+
+    /* ── List ── */
+    .search-input { width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+    .search-input:focus { outline: none; border-color: #2d5a8e; }
+    .list-count { font-size: 12px; color: #aaa; margin-bottom: 10px; }
+
+    .record-item { background: white; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .record-info { flex: 1; min-width: 0; }
+    .record-name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .record-name { font-size: 15px; font-weight: 600; color: #222; }
+    .record-sub { font-size: 12px; color: #999; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .record-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+    .record-amount { font-size: 16px; font-weight: 700; color: #2d5a8e; }
+    .record-actions { display: flex; gap: 5px; }
+    .btn-edit   { padding: 5px 10px; background: #f0f0f0; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .btn-delete { padding: 5px 10px; background: #fee; border: none; border-radius: 6px; font-size: 12px; color: #c00; cursor: pointer; }
+
+    .side-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-groom { background: #e8f0fb; color: #2d5a8e; }
+    .badge-bride { background: #fce4ec; color: #b5397a; }
+
+    /* ── Summary ── */
+    .summary-filter-row { display: flex; gap: 7px; margin-bottom: 14px; flex-wrap: wrap; }
+    .sf-btn { padding: 7px 14px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; cursor: pointer; background: white; color: #555; user-select: none; transition: all 0.15s; }
+    .sf-btn.active { border-color: #2d5a8e; background: #2d5a8e; color: white; font-weight: 600; }
+
+    .summary-card { background: white; border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .summary-title { font-size: 13px; color: #888; margin-bottom: 6px; }
+    .summary-amount { font-size: 28px; font-weight: 700; color: #222; }
+    .summary-count-text { font-size: 13px; color: #aaa; margin-top: 4px; }
+    .summary-divider { height: 1px; background: #f0f0f0; margin: 12px 0; }
+    .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; }
+    .summary-row-label { font-size: 14px; color: #555; display: flex; align-items: center; gap: 6px; }
+    .summary-row-right { text-align: right; }
+    .summary-row-value { font-size: 15px; font-weight: 600; color: #222; }
+    .summary-row-count { font-size: 12px; color: #bbb; }
+
+    .affil-breakdown { background: white; border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .affil-breakdown-title { font-size: 13px; color: #888; margin-bottom: 12px; }
+    .affil-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+    .affil-row:last-child { border-bottom: none; }
+    .affil-row-name { font-size: 14px; color: #333; font-weight: 500; }
+    .affil-row-right { text-align: right; }
+    .affil-row-amount { font-size: 14px; font-weight: 700; color: #2d5a8e; }
+    .affil-row-count  { font-size: 12px; color: #aaa; margin-top: 2px; }
+
+    /* ── Export ── */
+    .export-info-card { background: white; border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .btn-export    { width: 100%; padding: 14px; background: #388e3c; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 10px; }
+    .btn-clipboard { width: 100%; padding: 14px; background: #546e7a; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+
+    /* ── Empty ── */
+    .empty-state { text-align: center; padding: 40px 24px; color: #bbb; }
+    .empty-icon  { font-size: 38px; margin-bottom: 10px; }
+
+    /* ── Toast ── */
+    .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 11px 18px; border-radius: 22px; font-size: 14px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 300; white-space: nowrap; display: flex; align-items: center; gap: 10px; }
+    .toast.show { opacity: 1; pointer-events: auto; }
+    .toast-undo-btn { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 3px 10px; border-radius: 12px; font-size: 13px; cursor: pointer; font-weight: 600; }
+
+    /* ── Modals ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: white; border-radius: 16px 16px 0 0; padding: 24px 20px 32px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+    .btn-cancel  { flex: 1; padding: 13px; background: #f0f0f0; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: 500; }
+    .btn-confirm { flex: 1; padding: 13px; background: #2d5a8e; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .btn-confirm.danger { background: #c62828; }
+    .confirm-modal { border-radius: 12px; padding: 24px 20px; width: calc(100% - 48px); max-width: 340px; margin: auto; }
+    .confirm-desc  { font-size: 14px; color: #666; margin-top: 6px; }
+
+    /* ── Settings Modal ── */
+    .settings-section { margin-bottom: 24px; }
+    .settings-section-title { font-size: 14px; font-weight: 700; color: #222; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+    .settings-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 10px; }
+    .settings-chip { display: flex; align-items: center; gap: 5px; padding: 6px 10px 6px 12px; background: #f5f5f5; border-radius: 20px; font-size: 13px; color: #333; }
+    .settings-chip-del { background: none; border: none; cursor: pointer; color: #aaa; font-size: 15px; line-height: 1; padding: 0; display: flex; align-items: center; }
+    .settings-chip-del:hover { color: #c00; }
+    .settings-add-row { display: flex; gap: 8px; }
+    .settings-add-input { flex: 1; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 14px; }
+    .settings-add-input:focus { outline: none; border-color: #2d5a8e; }
+    .btn-add { padding: 9px 16px; background: #2d5a8e; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .settings-empty { font-size: 13px; color: #bbb; padding: 4px 0 8px; }
+    .settings-chip-edit { background: none; border: none; cursor: pointer; color: #aaa; font-size: 13px; line-height: 1; padding: 0; display: flex; align-items: center; }
+    .settings-chip-edit:hover { color: #2d5a8e; }
+    .chip-edit-input { border: 1.5px solid #2d5a8e; border-radius: 20px; padding: 4px 10px; font-size: 13px; outline: none; width: 90px; }
+
+    /* ════════════ MOBILE (< 768px) ════════════ */
+    @media (max-width: 767px) {
+      .tabs { display: flex; background: white; border-bottom: 1px solid #e0e0e0; position: sticky; top: 0; z-index: 10; }
+      .tab  { flex: 1; padding: 13px 4px; text-align: center; font-size: 12px; cursor: pointer; color: #888; border-bottom: 2px solid transparent; user-select: none; }
+      .tab.active { color: #2d5a8e; border-bottom-color: #2d5a8e; font-weight: 600; }
+      .mobile-content { padding: 14px; }
+      .mobile-section { display: none; }
+      .mobile-section.active { display: block; }
+      .tablet-layout { display: none; }
+      .amount-presets { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    /* ════════════ TABLET (≥ 768px) ════════════ */
+    @media (min-width: 768px) {
+      .tabs           { display: none; }
+      .mobile-content { display: none; }
+      .tablet-layout {
+        display: grid;
+        grid-template-columns: 1fr 64px;
+        height: calc(100vh - 54px);
+      }
+      .panel-left { background: white; border-right: 1px solid #e0e0e0; padding: 18px; overflow-y: auto; }
+      .panel-left-title { font-size: 15px; font-weight: 700; color: #222; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+      .panel-right { display: flex; flex-direction: column; overflow: visible; background: white; border-left: 1px solid #e0e0e0; }
+      .panel-tabs { display: flex; flex-direction: column; gap: 8px; padding: 10px 8px; }
+      .panel-tab  { padding: 12px 6px; text-align: center; font-size: 12px; cursor: pointer; color: #888; border: 1px solid #eee; border-radius: 10px; user-select: none; line-height: 1.15; background: #fafafa; }
+      .panel-tab.active { color: #2d5a8e; border-color: rgba(45,90,142,0.35); background: #e8f0fb; font-weight: 700; }
+      .panel-body {
+        position: fixed;
+        top: 54px;
+        right: 64px;
+        width: min(420px, calc(100vw - 64px));
+        height: calc(100vh - 54px);
+        background: white;
+        border-left: 1px solid #e0e0e0;
+        box-shadow: -10px 0 24px rgba(0,0,0,0.12);
+        overflow-y: auto;
+        padding: 18px;
+        display: none;
+        z-index: 120;
+      }
+      .tablet-layout.panel-open .panel-body { display: block; }
+      .panel-section { display: none; }
+      .panel-section.active { display: block; }
+      .modal-overlay { align-items: center; }
+      .modal { border-radius: 12px; margin: auto; }
+    }
+    @media (min-width: 1024px) {
+      .panel-body { width: 460px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <div class="header-left">
+      <button class="btn-settings" onclick="openSettings()" title="설정">⚙️</button>
+      <div class="header-title">💍 축의금 접수</div>
+    </div>
+    <div class="header-right">
+      <div class="header-total" id="headerTotal">0만원</div>
+      <div class="header-count" id="headerCount">총 0건</div>
+      <div class="save-status" id="saveStatus">🟢 저장됨</div>
+    </div>
+  </div>
+  <div class="secret-banner" id="secretBanner" style="display:none">⚠️ 시크릿 모드에서는 데이터가 저장되지 않습니다</div>
+
+  <!-- ══ MOBILE ══ -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchMobileTab('input')">접수 입력</div>
+    <div class="tab" onclick="switchMobileTab('list')">목록</div>
+    <div class="tab" onclick="switchMobileTab('summary')">요약</div>
+    <div class="tab" onclick="switchMobileTab('export')">내보내기</div>
+  </div>
+  <div class="mobile-content mobile-section active" id="m-section-input"><div id="m-form-area"></div></div>
+  <div class="mobile-content mobile-section" id="m-section-lock">
+    <div class="lock-screen">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-title">비밀번호를 입력해주세요</div>
+      <input type="password" class="lock-input" id="m-lock-input" maxlength="10" placeholder="••••"
+        onkeydown="if(event.key==='Enter') verifyInline('m')">
+      <button class="lock-btn" onclick="verifyInline('m')">확인</button>
+    </div>
+  </div>
+  <div class="mobile-content mobile-section" id="m-section-list">
+    <input type="text" class="search-input" id="m-searchInput" placeholder="이름 또는 소속으로 검색..." oninput="renderList('m')">
+    <div class="list-count" id="m-listCount"></div>
+    <div id="m-recordList"></div>
+  </div>
+  <div class="mobile-content mobile-section" id="m-section-summary"><div id="m-summaryArea"></div></div>
+  <div class="mobile-content mobile-section" id="m-section-export"><div id="m-exportArea"></div></div>
+
+  <!-- ══ TABLET ══ -->
+  <div class="tablet-layout">
+    <div class="panel-left">
+      <div class="panel-left-title">접수 입력</div>
+      <div id="t-form-area"></div>
+    </div>
+    <div class="panel-right" id="panelRight">
+      <div class="panel-tabs">
+        <div class="panel-tab active" id="t-tab-list" onclick="switchTabletTab('list')">목록</div>
+        <div class="panel-tab" id="t-tab-summary" onclick="switchTabletTab('summary')">요약</div>
+        <div class="panel-tab" id="t-tab-export" onclick="switchTabletTab('export')">내보내기</div>
+      </div>
+      <div class="panel-body" id="t-panel-body">
+        <div id="t-lock-screen" class="lock-screen">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-title">비밀번호를 입력해주세요</div>
+          <input type="password" class="lock-input" id="t-lock-input" maxlength="10" placeholder="••••"
+            onkeydown="if(event.key==='Enter') verifyInline('t')">
+          <button class="lock-btn" onclick="verifyInline('t')">확인</button>
+        </div>
+        <div id="t-locked-content" style="display:none">
+        <div class="panel-section active" id="t-section-list">
+          <input type="text" class="search-input" id="t-searchInput" placeholder="이름 또는 소속으로 검색..." oninput="renderList('t')">
+          <div class="list-count" id="t-listCount"></div>
+          <div id="t-recordList"></div>
+        </div>
+        <div class="panel-section" id="t-section-summary"><div id="t-summaryArea"></div></div>
+        <div class="panel-section" id="t-section-export"><div id="t-exportArea"></div></div>
+        </div><!-- /t-locked-content -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 비밀번호 모달 ══ -->
+  <div class="modal-overlay" id="pwModal" style="align-items:center">
+    <div class="modal confirm-modal">
+      <div class="modal-title">🔒 비밀번호를 입력해주세요</div>
+      <input type="password" class="form-input" id="pwInput" maxlength="10" placeholder="비밀번호"
+        style="margin-top:12px" onkeydown="if(event.key==='Enter') verifyPassword()">
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('pwModal')">취소</button>
+        <button class="btn-confirm" onclick="verifyPassword()">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast ── -->
+  <div class="toast" id="toast">
+    <span id="toastMsg"></span>
+    <button class="toast-undo-btn" id="toastUndoBtn" style="display:none" onclick="undoDelete()">취소</button>
+  </div>
+
+  <!-- ══ 설정 모달 ══ -->
+  <div class="modal-overlay" id="settingsModal" onclick="handleOverlayClick(event,'settingsModal')">
+    <div class="modal">
+      <div class="modal-title">⚙️ 설정</div>
+
+      <!-- 소속 태그 -->
+      <div class="settings-section">
+        <div class="settings-section-title">소속 태그</div>
+        <div class="settings-chips" id="settingsAffilChips"></div>
+        <div class="settings-add-row">
+          <input type="text" class="settings-add-input" id="newAffilInput" placeholder="새 태그 입력 (예: 동창)" maxlength="10"
+            onkeydown="if(event.key==='Enter') addAffilTag()">
+          <button class="btn-add" onclick="addAffilTag()">추가</button>
+        </div>
+      </div>
+
+      <!-- 금액 프리셋 -->
+      <div class="settings-section">
+        <div class="settings-section-title">금액 프리셋 (만원)</div>
+        <div class="settings-chips" id="settingsAmountChips"></div>
+        <div class="settings-add-row">
+          <input type="text" class="settings-add-input" id="newAmountInput" inputmode="numeric" pattern="[0-9]*" placeholder="금액 입력 (만원)"
+            onkeydown="if(event.key==='Enter') addAmountPreset()">
+          <button class="btn-add" onclick="addAmountPreset()">추가</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-confirm" onclick="closeModal('settingsModal')">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 수정 모달 ══ -->
+  <div class="modal-overlay" id="editModal" onclick="handleOverlayClick(event,'editModal')">
+    <div class="modal">
+      <div class="modal-title">접수 수정</div>
+      <div class="form-group">
+        <label class="form-label">측 구분</label>
+        <div class="side-toggle">
+          <div class="side-btn active-groom" id="editSideGroomBtn" onclick="selectEditSide('신랑')">신랑측</div>
+          <div class="side-btn" id="editSideBrideBtn" onclick="selectEditSide('신부')">신부측</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">이름</label>
+        <input type="text" class="form-input" id="editName" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">소속 <span class="optional">(선택)</span></label>
+        <div class="affil-tags" id="editAffilTags"></div>
+        <input type="text" class="form-input" id="editAffiliation" placeholder="직접 입력" autocomplete="off" oninput="syncAffilTags('edit')">
+      </div>
+      <div class="form-group">
+        <label class="form-label">금액 (만원)</label>
+        <input type="text" class="form-input" id="editAmount" inputmode="numeric" pattern="[0-9]*">
+      </div>
+      <div class="form-group">
+        <label class="form-label">메모 <span class="optional">(선택)</span></label>
+        <input type="text" class="form-input" id="editMemo" autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('editModal')">취소</button>
+        <button class="btn-confirm" onclick="saveEdit()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 삭제 확인 모달 ══ -->
+  <div class="modal-overlay" id="deleteModal" onclick="handleOverlayClick(event,'deleteModal')" style="align-items:center">
+    <div class="modal confirm-modal">
+      <div class="modal-title" id="deleteModalTitle">삭제할까요?</div>
+      <div class="confirm-desc">삭제 직후 5초간 취소할 수 있습니다.</div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('deleteModal')">취소</button>
+        <button class="btn-confirm danger" onclick="confirmDelete()">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── PWA: Service Worker 등록 ─────────────────────────
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+
+    // ── 스토리지 키 ─────────────────────────────────────
+    const DATA_KEY     = 'chukuigeum_v1';
+    const SETTINGS_KEY = 'chukuigeum_settings_v1';
+
+    // ── 상태 ────────────────────────────────────────────
+    let records       = [];
+    let settings      = {
+      affilTags:     ['친척', '지인', '회사', '교회', '학교', '기타'],
+      amountPresets: [5, 7, 10, 20, 30, 50, 70, 100]
+    };
+    let currentSide   = '신랑';
+    let editingId     = null;
+    let editingSide   = '신랑';
+    let deletingId    = null;
+    let deletedItem   = null;
+    let undoTimer     = null;
+    let toastTimer    = null;
+    let summaryFilter = 'all';
+    let isUnlocked    = false;
+    let pendingTab    = null;
+    let pendingScope  = null;
+    let currentTabletTab = null;
+    const PASSWORD    = '5051';
+
+    // ── Init ────────────────────────────────────────────
+    function init() {
+      // 시크릿 모드 감지
+      try { localStorage.setItem('__test__', '1'); localStorage.removeItem('__test__'); }
+      catch(e) { document.getElementById('secretBanner').style.display = 'block'; }
+
+      try { const s = localStorage.getItem(DATA_KEY);     if (s) records  = JSON.parse(s); } catch(e) { records = []; }
+      try { const s = localStorage.getItem(SETTINGS_KEY); if (s) settings = { ...settings, ...JSON.parse(s) }; } catch(e) {}
+      renderForms();
+      updateAll();
+      // 태블릿 초기 잠금 상태 적용
+      document.getElementById('t-lock-screen').style.display = 'flex';
+      document.getElementById('t-locked-content').style.display = 'none';
+      window.addEventListener('beforeunload', e => { if (records.length) e.returnValue = ''; });
+      // 태블릿에서는 탭 컬럼만 보이고, 내용(서랍)은 필요할 때만 열림
+    }
+
+    function saveData() {
+      const el = document.getElementById('saveStatus');
+      if (el) el.textContent = '🟡 저장 중...';
+      localStorage.setItem(DATA_KEY, JSON.stringify(records));
+      if (el) el.textContent = '🟢 저장됨';
+    }
+    function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+
+    function updateAll() {
+      updateHeader();
+      renderList('m'); renderList('t');
+      renderSummary('m'); renderSummary('t');
+      renderExport('m'); renderExport('t');
+    }
+
+    // ── 설정: 소속 태그 ──────────────────────────────────
+    function openSettings() {
+      renderSettingsChips();
+      document.getElementById('settingsModal').classList.add('show');
+    }
+
+    function renderSettingsChips() {
+      // 소속 태그
+      const ac = document.getElementById('settingsAffilChips');
+      ac.innerHTML = settings.affilTags.length
+        ? settings.affilTags.map(t => `
+            <div class="settings-chip" id="affil-chip-${esc(t)}">
+              <span>${esc(t)}</span>
+              <button class="settings-chip-edit" onclick="startEditAffilTag('${esc(t)}')" title="수정">✏️</button>
+              <button class="settings-chip-del" onclick="deleteAffilTag('${esc(t)}')" title="삭제">×</button>
+            </div>`).join('')
+        : '<div class="settings-empty">등록된 태그 없음 (직접 입력 사용)</div>';
+
+      // 금액 프리셋
+      const pc = document.getElementById('settingsAmountChips');
+      pc.innerHTML = settings.amountPresets.length
+        ? settings.amountPresets.map(n => `
+            <div class="settings-chip" id="amount-chip-${n}">
+              <span>${n}만원</span>
+              <button class="settings-chip-edit" onclick="startEditAmountPreset(${n})" title="수정">✏️</button>
+              <button class="settings-chip-del" onclick="deleteAmountPreset(${n})" title="삭제">×</button>
+            </div>`).join('')
+        : '<div class="settings-empty">등록된 프리셋 없음 (직접 입력 사용)</div>';
+    }
+
+    function addAffilTag() {
+      const input = document.getElementById('newAffilInput');
+      const val   = input.value.trim();
+      if (!val) { showToast('태그명을 입력해주세요'); return; }
+      if (settings.affilTags.includes(val)) { showToast('이미 있는 태그예요'); return; }
+      settings.affilTags.push(val);
+      saveSettings();
+      input.value = '';
+      renderSettingsChips();
+      renderForms();
+    }
+
+    function deleteAffilTag(tag) {
+      settings.affilTags = settings.affilTags.filter(t => t !== tag);
+      saveSettings();
+      renderSettingsChips();
+      renderForms();
+    }
+
+    function addAmountPreset() {
+      const input  = document.getElementById('newAmountInput');
+      const raw    = input.value.replace(/[^0-9]/g, '');
+      const amount = parseInt(raw, 10);
+      if (!raw || isNaN(amount) || amount <= 0) { showToast('올바른 금액을 입력해주세요'); return; }
+      if (settings.amountPresets.includes(amount)) { showToast('이미 있는 금액이에요'); return; }
+      settings.amountPresets.push(amount);
+      settings.amountPresets.sort((a, b) => a - b);
+      saveSettings();
+      input.value = '';
+      renderSettingsChips();
+      renderForms();
+    }
+
+    function startEditAffilTag(old) {
+      const chip = document.getElementById('affil-chip-' + old);
+      if (!chip) return;
+      chip.innerHTML = `<input class="chip-edit-input" id="edit-affil-input" value="${esc(old)}" maxlength="10"
+        onkeydown="if(event.key==='Enter') confirmEditAffilTag('${esc(old)}'); if(event.key==='Escape') renderSettingsChips();"
+        onblur="confirmEditAffilTag('${esc(old)}')">`;
+      const inp = document.getElementById('edit-affil-input');
+      if (inp) { inp.focus(); inp.select(); }
+    }
+
+    function confirmEditAffilTag(old) {
+      const inp = document.getElementById('edit-affil-input');
+      if (!inp) return;
+      const val = inp.value.trim();
+      if (!val || val === old) { renderSettingsChips(); return; }
+      if (settings.affilTags.includes(val)) { showToast('이미 있는 태그예요'); renderSettingsChips(); return; }
+      settings.affilTags = settings.affilTags.map(t => t === old ? val : t);
+      saveSettings(); renderSettingsChips(); renderForms();
+    }
+
+    function startEditAmountPreset(old) {
+      const chip = document.getElementById('amount-chip-' + old);
+      if (!chip) return;
+      chip.innerHTML = `<input class="chip-edit-input" id="edit-amount-input" value="${old}" maxlength="6" inputmode="numeric"
+        onkeydown="if(event.key==='Enter') confirmEditAmountPreset(${old}); if(event.key==='Escape') renderSettingsChips();"
+        onblur="confirmEditAmountPreset(${old})">`;
+      const inp = document.getElementById('edit-amount-input');
+      if (inp) { inp.focus(); inp.select(); }
+    }
+
+    function confirmEditAmountPreset(old) {
+      const inp = document.getElementById('edit-amount-input');
+      if (!inp) return;
+      const val = parseInt(inp.value.replace(/[^0-9]/g, ''), 10);
+      if (!val || val <= 0 || val === old) { renderSettingsChips(); return; }
+      if (settings.amountPresets.includes(val)) { showToast('이미 있는 금액이에요'); renderSettingsChips(); return; }
+      settings.amountPresets = settings.amountPresets.map(n => n === old ? val : n);
+      settings.amountPresets.sort((a, b) => a - b);
+      saveSettings(); renderSettingsChips(); renderForms();
+    }
+
+    function deleteAmountPreset(n) {
+      settings.amountPresets = settings.amountPresets.filter(x => x !== n);
+      saveSettings();
+      renderSettingsChips();
+      renderForms();
+    }
+
+    // ── Form 렌더링 ──────────────────────────────────────
+    function formHTML(prefix) {
+      const tags = settings.affilTags.length
+        ? settings.affilTags.map(t =>
+            `<div class="affil-tag" data-tag="${esc(t)}" onclick="selectAffilTag('${prefix}','${esc(t)}')">${esc(t)}</div>`
+          ).join('')
+        : `<span class="affil-tags-empty">태그 없음 — 설정에서 추가하세요</span>`;
+
+      const presets = settings.amountPresets.length
+        ? settings.amountPresets.map(n =>
+            `<div class="preset-btn" onclick="selectPreset('${prefix}',${n})">${n}만원</div>`
+          ).join('')
+        : '';
+
+      return `
+        <div class="form-group">
+          <label class="form-label">측 구분</label>
+          <div class="side-toggle">
+            <div class="side-btn active-groom" id="${prefix}sideGroomBtn" onclick="selectSide('신랑')">신랑측</div>
+            <div class="side-btn" id="${prefix}sideBrideBtn" onclick="selectSide('신부')">신부측</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">이름 <span style="color:#c00">*</span></label>
+          <input type="text" class="form-input" id="${prefix}inputName" placeholder="하객 성함" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">소속 <span class="optional">(선택)</span></label>
+          <div class="affil-tags" id="${prefix}affilTags">${tags}</div>
+          <input type="text" class="form-input" id="${prefix}inputAffiliation"
+            placeholder="직접 입력 또는 위 태그 선택" autocomplete="off"
+            oninput="syncAffilTags('${prefix}')">
+        </div>
+        <div class="form-group">
+          <label class="form-label">금액 <span style="color:#c00">*</span></label>
+          <div class="amount-presets" id="${prefix}presets">${presets}</div>
+          <div class="amount-input-wrap">
+            <input type="text" class="form-input" id="${prefix}inputAmount"
+              inputmode="numeric" pattern="[0-9]*" placeholder="직접 입력"
+              oninput="clearPreset('${prefix}')">
+            <span class="amount-unit">만원</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">메모 <span class="optional">(선택)</span></label>
+          <input type="text" class="form-input" id="${prefix}inputMemo"
+            placeholder="예: 2명 합산, 봉투 이름 없음" autocomplete="off">
+        </div>
+        <button class="btn-submit" onclick="submitRecord('${prefix}')">저장</button>
+      `;
+    }
+
+    function renderForms() {
+      document.getElementById('m-form-area').innerHTML = formHTML('m-');
+      document.getElementById('t-form-area').innerHTML = formHTML('t-');
+      // 현재 측 상태 유지
+      selectSide(currentSide);
+    }
+
+    // ── 소속 태그 선택 ────────────────────────────────────
+    function selectAffilTag(prefix, tag) {
+      const input = document.getElementById(prefix + 'inputAffiliation');
+      if (!input) return;
+      input.value = (input.value === tag) ? '' : tag;
+      syncAffilTags(prefix);
+    }
+
+    function syncAffilTags(prefix) {
+      const val       = (document.getElementById(prefix + 'inputAffiliation')?.value || '').trim();
+      const container = prefix === 'edit'
+        ? document.getElementById('editAffilTags')
+        : document.getElementById(prefix + 'affilTags');
+      if (!container) return;
+      container.querySelectorAll('.affil-tag').forEach(el => {
+        el.classList.toggle('selected', el.dataset.tag === val);
+      });
+    }
+
+    function renderEditAffilTags(currentVal) {
+      const c = document.getElementById('editAffilTags');
+      if (!c) return;
+      c.innerHTML = settings.affilTags.length
+        ? settings.affilTags.map(t =>
+            `<div class="affil-tag${t === currentVal ? ' selected' : ''}" data-tag="${esc(t)}" onclick="selectAffilTag('edit','${esc(t)}')">${esc(t)}</div>`
+          ).join('')
+        : `<span class="affil-tags-empty">설정에서 태그를 추가할 수 있어요</span>`;
+    }
+
+    // ── 측 선택 ──────────────────────────────────────────
+    function selectSide(side) {
+      currentSide = side;
+      ['m-', 't-'].forEach(p => {
+        const g = document.getElementById(p + 'sideGroomBtn');
+        const b = document.getElementById(p + 'sideBrideBtn');
+        if (!g || !b) return;
+        g.className = 'side-btn' + (side === '신랑' ? ' active-groom' : '');
+        b.className = 'side-btn' + (side === '신부' ? ' active-bride' : '');
+      });
+    }
+
+    function selectEditSide(side) {
+      editingSide = side;
+      document.getElementById('editSideGroomBtn').className = 'side-btn' + (side === '신랑' ? ' active-groom' : '');
+      document.getElementById('editSideBrideBtn').className = 'side-btn' + (side === '신부' ? ' active-bride' : '');
+    }
+
+    // ── 금액 프리셋 ───────────────────────────────────────
+    function selectPreset(prefix, amount) {
+      const el = document.getElementById(prefix + 'inputAmount');
+      if (el) el.value = amount;
+      document.querySelectorAll(`#${prefix}presets .preset-btn`).forEach(btn => {
+        btn.classList.toggle('selected', btn.textContent === amount + '만원');
+      });
+    }
+
+    function clearPreset(prefix) {
+      document.querySelectorAll(`#${prefix}presets .preset-btn`).forEach(btn => btn.classList.remove('selected'));
+    }
+
+    // ── 접수 저장 ─────────────────────────────────────────
+    function submitRecord(prefix) {
+      const name        = (document.getElementById(prefix + 'inputName')?.value || '').trim();
+      const amountRaw   = (document.getElementById(prefix + 'inputAmount')?.value || '').replace(/[^0-9]/g, '');
+      const amount      = parseInt(amountRaw, 10);
+      const affiliation = (document.getElementById(prefix + 'inputAffiliation')?.value || '').trim();
+      const memo        = (document.getElementById(prefix + 'inputMemo')?.value || '').trim();
+
+      if (!name) { showToast('이름을 입력해주세요'); return; }
+      if (!amountRaw || isNaN(amount) || amount <= 0) { showToast('금액을 입력해주세요'); return; }
+
+      // 동명이인 확인 (이름+측 동일)
+      const dup = records.find(r => r.name === name && r.side === currentSide);
+      if (dup && !memo) {
+        showToast(`"${name}"(${currentSide}측) 동명이인입니다. 메모로 구분해주세요`);
+        const memoEl = document.getElementById(prefix + 'inputMemo');
+        if (memoEl) { memoEl.style.borderColor = '#c00'; memoEl.focus(); setTimeout(() => memoEl.style.borderColor = '', 2000); }
+        return;
+      }
+
+      records.unshift({ id: Date.now(), name, affiliation, amount, side: currentSide, memo, createdAt: new Date().toISOString() });
+      saveData();
+      updateAll();
+      resetForm(prefix);
+      showToast(`${name}님 ${amount}만원 저장 완료`);
+    }
+
+    function resetForm(prefix) {
+      ['inputName','inputAffiliation','inputAmount','inputMemo'].forEach(id => {
+        const el = document.getElementById(prefix + id);
+        if (el) el.value = '';
+      });
+      clearPreset(prefix);
+      syncAffilTags(prefix);
+      document.getElementById(prefix + 'inputName')?.focus();
+    }
+
+    // ── 헤더 ─────────────────────────────────────────────
+    function updateHeader() {
+      const total = records.reduce((s, r) => s + r.amount, 0);
+      document.getElementById('headerTotal').textContent = formatAmount(total);
+      document.getElementById('headerCount').textContent = `총 ${records.length}건`;
+    }
+
+    // ── 목록 ─────────────────────────────────────────────
+    function renderList(scope) {
+      const p  = scope + '-';
+      const q  = ((document.getElementById(p + 'searchInput') || {}).value || '').trim().toLowerCase();
+      const fl = q
+        ? records.filter(r => r.name.toLowerCase().includes(q) || (r.affiliation && r.affiliation.toLowerCase().includes(q)))
+        : [...records];
+
+      const countEl = document.getElementById(p + 'listCount');
+      if (countEl) countEl.textContent = q ? `${fl.length}건 검색됨 (전체 ${records.length}건)` : `전체 ${records.length}건`;
+
+      const container = document.getElementById(p + 'recordList');
+      if (!container) return;
+
+      if (!fl.length) {
+        container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div>${q ? '검색 결과가 없어요' : '아직 접수된 내역이 없어요'}</div></div>`;
+        return;
+      }
+
+      container.innerHTML = fl.map(r => `
+        <div class="record-item">
+          <div class="record-info">
+            <div class="record-name-row">
+              <span class="record-name">${esc(r.name)}</span>
+              <span class="side-badge ${r.side === '신랑' ? 'badge-groom' : 'badge-bride'}">${r.side}측</span>
+            </div>
+            <div class="record-sub">${r.affiliation ? esc(r.affiliation) + ' · ' : ''}${formatTime(r.createdAt)}${r.memo ? ' · ' + esc(r.memo) : ''}</div>
+          </div>
+          <div class="record-right">
+            <div class="record-amount">${r.amount}만원</div>
+            <div class="record-actions">
+              <button class="btn-edit"   onclick="openEditModal(${r.id})">수정</button>
+              <button class="btn-delete" onclick="openDeleteModal(${r.id},'${esc(r.name)}')">삭제</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ── 요약 ─────────────────────────────────────────────
+    function renderSummary(scope) {
+      const el = document.getElementById(scope + '-summaryArea');
+      if (!el) return;
+
+      const base  = summaryFilter === 'all' ? records : records.filter(r => r.side === summaryFilter);
+      const total = base.reduce((s, r) => s + r.amount, 0);
+      const gTotal = records.filter(r => r.side === '신랑').reduce((s, r) => s + r.amount, 0);
+      const bTotal = records.filter(r => r.side === '신부').reduce((s, r) => s + r.amount, 0);
+      const gCount = records.filter(r => r.side === '신랑').length;
+      const bCount = records.filter(r => r.side === '신부').length;
+
+      // 소속별 그룹화
+      const groups = {};
+      base.forEach(r => {
+        const k = r.affiliation || '미기재';
+        if (!groups[k]) groups[k] = { amount: 0, count: 0 };
+        groups[k].amount += r.amount;
+        groups[k].count++;
+      });
+      const groupRows = Object.entries(groups)
+        .sort((a, b) => b[1].amount - a[1].amount)
+        .map(([name, { amount, count }]) => `
+          <div class="affil-row">
+            <div class="affil-row-name">${esc(name)}</div>
+            <div class="affil-row-right">
+              <div class="affil-row-amount">${formatAmount(amount)}</div>
+              <div class="affil-row-count">${count}건</div>
+            </div>
+          </div>`).join('');
+
+      const filters = [
+        { key: 'all',  label: `전체` },
+        { key: '신랑', label: `신랑측 ${formatAmount(gTotal)}` },
+        { key: '신부', label: `신부측 ${formatAmount(bTotal)}` },
+      ];
+
+      el.innerHTML = `
+        <div class="summary-filter-row">
+          ${filters.map(f => `<button class="sf-btn${summaryFilter === f.key ? ' active' : ''}" onclick="setSummaryFilter('${f.key}')">${f.label}</button>`).join('')}
+        </div>
+        <div class="summary-card">
+          <div class="summary-title">${summaryFilter === 'all' ? '전체 합계' : summaryFilter + '측 합계'}</div>
+          <div class="summary-amount">${formatAmount(total)}</div>
+          <div class="summary-count-text">${base.length}건</div>
+        </div>
+        ${summaryFilter === 'all' ? `
+        <div class="summary-card">
+          <div class="summary-row">
+            <span class="summary-row-label"><span class="side-badge badge-groom">신랑측</span></span>
+            <div class="summary-row-right">
+              <div class="summary-row-value">${formatAmount(gTotal)}</div>
+              <div class="summary-row-count">${gCount}건</div>
+            </div>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-row">
+            <span class="summary-row-label"><span class="side-badge badge-bride">신부측</span></span>
+            <div class="summary-row-right">
+              <div class="summary-row-value">${formatAmount(bTotal)}</div>
+              <div class="summary-row-count">${bCount}건</div>
+            </div>
+          </div>
+        </div>` : ''}
+        <div class="affil-breakdown">
+          <div class="affil-breakdown-title">소속별 합산</div>
+          ${groupRows || '<div class="empty-state" style="padding:16px"><div>데이터가 없어요</div></div>'}
+        </div>
+      `;
+    }
+
+    function setSummaryFilter(key) {
+      summaryFilter = key;
+      renderSummary('m');
+      renderSummary('t');
+    }
+
+    // ── 내보내기 ──────────────────────────────────────────
+    function renderExport(scope) {
+      const el = document.getElementById(scope + '-exportArea');
+      if (!el) return;
+      const total = records.reduce((s, r) => s + r.amount, 0);
+      el.innerHTML = `
+        <div class="export-info-card">
+          <div class="summary-title">현재 저장된 데이터</div>
+          <div style="font-size:15px;font-weight:600;color:#222;margin-top:4px">
+            ${records.length ? `총 ${records.length}건 · ${formatAmount(total)}` : '저장된 데이터 없음'}
+          </div>
+        </div>
+        <button class="btn-export" onclick="exportCSV()">📥 CSV 다운로드 (엑셀용)</button>
+        <button class="btn-clipboard" onclick="copyToClipboard()">📋 클립보드 복사 (텍스트)</button>
+        <hr style="border:none;border-top:1px solid #e0e0e0;margin:14px 0">
+        <button class="btn-export" style="background:#5c6bc0" onclick="exportJSON()">💾 JSON 백업</button>
+        <button class="btn-clipboard" style="background:#6d4c41;margin-top:10px" onclick="document.getElementById('jsonFileInput').click()">📂 JSON 복원</button>
+        <input type="file" id="jsonFileInput" accept=".json" style="display:none" onchange="importJSON(event)">
+      `;
+    }
+
+    function exportCSV() {
+      if (!records.length) { showToast('저장된 데이터가 없습니다'); return; }
+      const BOM  = '\uFEFF';
+      const rows = records.map(r => [`"${r.name}"`, `"${r.affiliation || ''}"`, r.amount, r.side + '측', `"${r.memo || ''}"`, formatTime(r.createdAt)].join(','));
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([BOM + ['이름,소속,금액(만원),측,메모,접수시각', ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' }));
+      a.download = `축의금_${formatDate()}.csv`;
+      a.click();
+      showToast('CSV 다운로드 완료');
+    }
+
+    function copyToClipboard() {
+      if (!records.length) { showToast('저장된 데이터가 없습니다'); return; }
+      const total = records.reduce((s, r) => s + r.amount, 0);
+      const lines = records.map((r, i) =>
+        `${i+1}. ${r.name}${r.affiliation ? ' ('+r.affiliation+')' : ''} | ${r.side}측 | ${r.amount}만원${r.memo ? ' | '+r.memo : ''}`
+      );
+      navigator.clipboard.writeText(`축의금 접수 목록 (${formatDate()})\n총 ${records.length}건 · ${formatAmount(total)}\n\n` + lines.join('\n'))
+        .then(() => showToast('클립보드에 복사됐습니다'));
+    }
+
+    function exportJSON() {
+      if (!records.length) { showToast('저장된 데이터가 없습니다'); return; }
+      const data = { records, settings, exportedAt: new Date().toISOString() };
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+      a.download = `축의금백업_${formatDate()}.json`;
+      a.click();
+      showToast('JSON 백업 완료');
+    }
+
+    function importJSON(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (!Array.isArray(data.records)) { showToast('올바른 백업 파일이 아닙니다'); return; }
+          const existingIds = new Set(records.map(r => r.id));
+          const newRecords  = data.records.filter(r => !existingIds.has(r.id));
+          records = [...records, ...newRecords];
+          if (data.settings) settings = { ...settings, ...data.settings };
+          saveData(); saveSettings(); renderForms(); updateAll();
+          showToast(`복원 완료 (${newRecords.length}건 추가)`);
+        } catch { showToast('파일을 읽을 수 없습니다'); }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    // ── 수정 모달 ─────────────────────────────────────────
+    function openEditModal(id) {
+      const r = records.find(r => r.id === id);
+      if (!r) return;
+      editingId   = id;
+      editingSide = r.side;
+      document.getElementById('editName').value        = r.name;
+      document.getElementById('editAffiliation').value = r.affiliation || '';
+      document.getElementById('editAmount').value      = r.amount;
+      document.getElementById('editMemo').value        = r.memo || '';
+      selectEditSide(r.side);
+      renderEditAffilTags(r.affiliation || '');
+      document.getElementById('editModal').classList.add('show');
+    }
+
+    function saveEdit() {
+      const name        = document.getElementById('editName').value.trim();
+      const amountRaw   = document.getElementById('editAmount').value.replace(/[^0-9]/g, '');
+      const amount      = parseInt(amountRaw, 10);
+      const affiliation = document.getElementById('editAffiliation').value.trim();
+      const memo        = document.getElementById('editMemo').value.trim();
+      if (!name) { showToast('이름을 입력해주세요'); return; }
+      if (!amount || amount <= 0) { showToast('금액을 입력해주세요'); return; }
+      const idx = records.findIndex(r => r.id === editingId);
+      if (idx !== -1) { records[idx] = { ...records[idx], name, affiliation, amount, side: editingSide, memo }; saveData(); updateAll(); showToast('수정 완료'); }
+      closeModal('editModal');
+    }
+
+    // ── 삭제 + Undo ───────────────────────────────────────
+    function openDeleteModal(id, name) {
+      deletingId = id;
+      document.getElementById('deleteModalTitle').textContent = `"${name}" 삭제할까요?`;
+      document.getElementById('deleteModal').classList.add('show');
+    }
+
+    function confirmDelete() {
+      deletedItem = records.find(r => r.id === deletingId);
+      records     = records.filter(r => r.id !== deletingId);
+      saveData(); updateAll();
+      closeModal('deleteModal');
+      showUndoToast('삭제했습니다');
+    }
+
+    function undoDelete() {
+      if (!deletedItem) return;
+      clearTimeout(undoTimer);
+      records.unshift(deletedItem);
+      deletedItem = null;
+      saveData(); updateAll();
+      hideToast();
+      showToast('삭제를 취소했습니다');
+    }
+
+    // ── 탭 전환 ───────────────────────────────────────────
+    const MOBILE_TABS = ['input', 'list', 'summary', 'export'];
+    const TABLET_TABS = ['list', 'summary', 'export'];
+
+    const LOCKED_TABS = ['list', 'summary', 'export'];
+
+    function switchMobileTab(tab) {
+      const allTabs = ['input', 'lock', 'list', 'summary', 'export'];
+      if (LOCKED_TABS.includes(tab) && !isUnlocked) {
+        // 잠금 화면 섹션으로 이동, pendingTab 기억
+        pendingTab = tab; pendingScope = 'm';
+        document.querySelectorAll('.tabs .tab').forEach((el, i) => el.classList.toggle('active', MOBILE_TABS[i] === tab));
+        document.querySelectorAll('.mobile-section').forEach(el => el.classList.remove('active'));
+        document.getElementById('m-section-lock').classList.add('active');
+        document.getElementById('m-lock-input').value = '';
+        setTimeout(() => document.getElementById('m-lock-input').focus(), 100);
+        return;
+      }
+      document.querySelectorAll('.tabs .tab').forEach((el, i) => el.classList.toggle('active', MOBILE_TABS[i] === tab));
+      document.querySelectorAll('.mobile-section').forEach(el => el.classList.remove('active'));
+      document.getElementById('m-section-' + tab).classList.add('active');
+      updateAll();
+    }
+
+    function switchTabletTab(tab) {
+      const layout = document.querySelector('.tablet-layout');
+      const isOpen = layout.classList.contains('panel-open');
+
+      // 같은 탭을 다시 누르면 닫기(토글)
+      if (isOpen && currentTabletTab === tab) {
+        closeTabletPanel();
+        return;
+      }
+
+      layout.classList.add('panel-open');
+      currentTabletTab = tab;
+
+      document.querySelectorAll('.panel-tab').forEach((el, i) => el.classList.toggle('active', TABLET_TABS[i] === tab));
+      document.querySelectorAll('.panel-section').forEach(el => el.classList.remove('active'));
+
+      if (!isUnlocked) {
+        document.getElementById('t-lock-screen').style.display = 'flex';
+        document.getElementById('t-locked-content').style.display = 'none';
+        pendingTab = tab; pendingScope = 't';
+        document.getElementById('t-lock-input').value = '';
+        setTimeout(() => document.getElementById('t-lock-input').focus(), 100);
+        return;
+      }
+      document.getElementById('t-lock-screen').style.display = 'none';
+      document.getElementById('t-locked-content').style.display = 'block';
+      document.getElementById('t-section-' + tab).classList.add('active');
+      updateAll();
+    }
+
+    function closeTabletPanel() {
+      const layout = document.querySelector('.tablet-layout');
+      layout.classList.remove('panel-open');
+      currentTabletTab = null;
+      document.querySelectorAll('.panel-tab').forEach(el => el.classList.remove('active'));
+    }
+
+    function verifyInline(scope) {
+      const val = document.getElementById(scope + '-lock-input').value;
+      if (val === PASSWORD) {
+        isUnlocked = true;
+        if (scope === 'm') {
+          document.querySelectorAll('.mobile-section').forEach(el => el.classList.remove('active'));
+          document.getElementById('m-section-' + (pendingTab || 'list')).classList.add('active');
+          updateAll();
+        } else {
+          document.getElementById('t-lock-screen').style.display = 'none';
+          document.getElementById('t-locked-content').style.display = 'block';
+          document.querySelectorAll('.panel-section').forEach(el => el.classList.remove('active'));
+          document.getElementById('t-section-' + (pendingTab || 'list')).classList.add('active');
+          updateAll();
+        }
+        currentTabletTab = pendingTab || 'list';
+        pendingTab = pendingScope = null;
+      } else {
+        showToast('비밀번호가 틀렸습니다');
+        document.getElementById(scope + '-lock-input').value = '';
+        document.getElementById(scope + '-lock-input').focus();
+      }
+    }
+
+    function verifyPassword() {
+      const val = document.getElementById('pwInput').value;
+      if (val === PASSWORD) {
+        isUnlocked = true;
+        closeModal('pwModal');
+        pendingTab = pendingScope = null;
+      } else {
+        showToast('비밀번호가 틀렸습니다');
+        document.getElementById('pwInput').value = '';
+        document.getElementById('pwInput').focus();
+      }
+    }
+
+    // ── 모달 ─────────────────────────────────────────────
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('show');
+      editingId = deletingId = null;
+    }
+
+    function handleOverlayClick(e, id) {
+      if (e.target === document.getElementById(id)) closeModal(id);
+    }
+
+    // ── Toast ─────────────────────────────────────────────
+    function showToast(msg) {
+      clearTimeout(toastTimer); clearTimeout(undoTimer);
+      document.getElementById('toastMsg').textContent = msg;
+      document.getElementById('toastUndoBtn').style.display = 'none';
+      const t = document.getElementById('toast');
+      t.classList.add('show');
+      toastTimer = setTimeout(hideToast, 2500);
+    }
+
+    function showUndoToast(msg) {
+      clearTimeout(toastTimer); clearTimeout(undoTimer);
+      document.getElementById('toastMsg').textContent = msg;
+      document.getElementById('toastUndoBtn').style.display = 'inline-block';
+      document.getElementById('toast').classList.add('show');
+      undoTimer = setTimeout(() => { deletedItem = null; hideToast(); }, 5000);
+    }
+
+    function hideToast() { document.getElementById('toast').classList.remove('show'); }
+
+    // ── 유틸 ─────────────────────────────────────────────
+    function formatAmount(n) {
+      if (n === 0) return '0만원';
+      if (n >= 10000) { const e = Math.floor(n/10000), m = n%10000; return m ? `${e}억 ${m.toLocaleString()}만원` : `${e}억원`; }
+      return n.toLocaleString() + '만원';
+    }
+    function formatTime(iso) { const d = new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+    function formatDate()    { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
+    function esc(str)        { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+    init();
+  </script>
+</body>
+</html>
