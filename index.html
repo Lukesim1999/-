@@ -232,6 +232,10 @@
     <div class="room-subtitle">실시간 공유 접수 시스템</div>
     <div class="room-card">
       <div class="room-card-title">새 방 만들기</div>
+      <input type="password" class="room-input" id="roomPwInput" placeholder="비밀번호 설정" maxlength="10"
+        style="letter-spacing:2px;font-size:15px;margin-bottom:8px"
+        onkeydown="if(event.key==='Enter') createRoom()">
+      <div style="font-size:12px;color:#999;text-align:center;margin-bottom:12px">목록/요약 열람 시 필요한 비밀번호입니다</div>
       <button class="btn-room btn-room-create" onclick="createRoom()">새 방 만들기</button>
       <div class="room-divider">또는</div>
       <div class="room-card-title">기존 방 참가</div>
@@ -507,13 +511,21 @@
         showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
         return;
       }
+      const pw = document.getElementById('roomPwInput').value.trim();
+      if (!pw) {
+        showRoomToast('비밀번호를 설정해주세요.');
+        document.getElementById('roomPwInput').focus();
+        return;
+      }
       const code = generateRoomCode();
       try {
-        // Firestore에 이벤트(방) 문서 생성
+        // Firestore에 이벤트(방) 문서 생성 (비밀번호 포함)
         await db.collection('events').doc(code).set({
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          code: code
+          code: code,
+          password: pw
         });
+        roomPassword = pw;
         enterRoom(code);
       } catch (e) {
         console.error('[Room] 방 생성 실패:', e);
@@ -537,6 +549,7 @@
           showRoomToast('존재하지 않는 방 코드입니다.');
           return;
         }
+        roomPassword = doc.data().password || null;
         enterRoom(code);
       } catch (e) {
         console.error('[Room] 참가 실패:', e);
@@ -544,9 +557,21 @@
       }
     }
 
-    function rejoinLastRoom() {
+    async function rejoinLastRoom() {
       const code = localStorage.getItem(ROOM_KEY);
-      if (code) enterRoom(code);
+      if (!code) return;
+      // Firestore에서 비밀번호 로드
+      if (firestoreReady) {
+        try {
+          const doc = await db.collection('events').doc(code).get();
+          if (doc.exists) {
+            roomPassword = doc.data().password || null;
+          }
+        } catch (e) {
+          console.warn('[Room] 비밀번호 로드 실패, 로컬 폴백');
+        }
+      }
+      enterRoom(code);
     }
 
     function enterRoom(code) {
@@ -710,7 +735,7 @@
     let pendingTab    = null;
     let pendingScope  = null;
     let currentTabletTab = null;
-    const PASSWORD    = '5051';
+    let roomPassword  = null; // Firestore에서 로드
 
     // ── Init ────────────────────────────────────────────
     function init() {
@@ -1335,7 +1360,7 @@
 
     function verifyInline(scope) {
       const val = document.getElementById(scope + '-lock-input').value;
-      if (val === PASSWORD) {
+      if (!roomPassword || val === roomPassword) {
         isUnlocked = true;
         if (scope === 'm') {
           document.querySelectorAll('.mobile-section').forEach(el => el.classList.remove('active'));
@@ -1359,7 +1384,7 @@
 
     function verifyPassword() {
       const val = document.getElementById('pwInput').value;
-      if (val === PASSWORD) {
+      if (!roomPassword || val === roomPassword) {
         isUnlocked = true;
         closeModal('pwModal');
         pendingTab = pendingScope = null;

@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // events/{roomCode} — 방 문서
+    match /events/{roomCode} {
+      // 누구나 방 존재 여부 확인(읽기) 가능, 생성 가능
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['code', 'createdAt', 'password'])
+                    && request.resource.data.code == roomCode;
+      // 방 문서 수정/삭제는 불가
+      allow update, delete: if false;
+
+      // events/{roomCode}/records/{recordId} — 축의금 기록
+      match /records/{recordId} {
+        // 방 코드를 아는 사람은 읽기/쓰기 가능
+        allow read, write: if true;
+      }
+    }
+
+    // 그 외 모든 경로 차단
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
