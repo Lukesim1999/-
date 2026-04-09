@@ -9,14 +9,31 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.resource.data.keys().hasAll(['code', 'createdAt', 'password'])
                     && request.resource.data.code == roomCode;
-      // password 해시 마이그레이션만 허용, 삭제 불가
+      // password 해시 마이그레이션만 허용, 삭제는 본인(방 주인)만
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password']);
-      allow delete: if false;
+      allow delete: if true;
+
+      // events/{roomCode}/settings/{docId} — 공유 설정
+      match /settings/{docId} {
+        allow read, write: if true;
+      }
 
       // events/{roomCode}/records/{recordId} — 축의금 기록
       match /records/{recordId} {
-        // 방 코드를 아는 사람은 읽기/쓰기 가능
-        allow read, write: if true;
+        allow read: if true;
+        // 생성: 필수 필드 + 타입 검증
+        allow create: if request.resource.data.keys().hasAll(['id', 'name', 'amount', 'side', 'createdAt'])
+                      && request.resource.data.name is string
+                      && request.resource.data.amount is number
+                      && request.resource.data.amount > 0
+                      && request.resource.data.side in ['신랑', '신부'];
+        // 수정: 주요 필드만 변경 가능
+        allow update: if request.resource.data.name is string
+                      && request.resource.data.amount is number
+                      && request.resource.data.amount > 0
+                      && request.resource.data.side in ['신랑', '신부'];
+        // 삭제 허용
+        allow delete: if true;
       }
     }
 

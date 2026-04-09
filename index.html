@@ -147,6 +147,18 @@
     .settings-chip-edit:hover { color: #2d5a8e; }
     .chip-edit-input { border: 1.5px solid #2d5a8e; border-radius: 20px; padding: 4px 10px; font-size: 13px; outline: none; width: 90px; }
 
+    /* ── Room Created Modal ── */
+    .room-created-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; }
+    .room-created-overlay.show { display:flex; }
+    .room-created-card { background:white; border-radius:16px; padding:28px 24px; width:calc(100% - 48px); max-width:360px; text-align:center; }
+    .room-created-code { font-size:32px; font-weight:700; letter-spacing:6px; color:#2d5a8e; margin:16px 0 8px; }
+    .room-created-sub { font-size:13px; color:#999; margin-bottom:20px; }
+    .room-created-actions { display:flex; gap:8px; margin-bottom:12px; }
+    .room-created-actions button { flex:1; padding:12px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+    .btn-copy-code { background:#e8f0fb; color:#2d5a8e; }
+    .btn-share-code { background:#2d5a8e; color:white; }
+    .btn-enter-room { width:100%; padding:14px; background:#388e3c; color:white; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+
     /* ── Room Entry Screen ── */
     .room-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: linear-gradient(135deg, #2d5a8e 0%, #1a3a5c 100%); color: white; padding: 24px; position: fixed; inset: 0; z-index: 9999; }
     .room-logo { font-size: 56px; margin-bottom: 12px; }
@@ -225,6 +237,21 @@
 </head>
 <body>
 
+  <!-- ══ Room Created Modal ══ -->
+  <div class="room-created-overlay" id="roomCreatedModal">
+    <div class="room-created-card">
+      <div style="font-size:48px">🎉</div>
+      <div style="font-size:16px;font-weight:700;margin-top:8px">방이 만들어졌습니다!</div>
+      <div class="room-created-code" id="createdRoomCode"></div>
+      <div class="room-created-sub">이 코드를 접수 담당자에게 공유하세요</div>
+      <div class="room-created-actions">
+        <button class="btn-copy-code" onclick="copyRoomCode()">복사</button>
+        <button class="btn-share-code" onclick="shareRoomCode()">공유하기</button>
+      </div>
+      <button class="btn-enter-room" onclick="confirmEnterRoom()">확인하고 입장하기</button>
+    </div>
+  </div>
+
   <!-- ══ Room Entry Screen ══ -->
   <div id="roomScreen" class="room-screen">
     <div class="room-logo">💍</div>
@@ -246,7 +273,10 @@
     </div>
     <div class="room-code-display" id="lastRoomInfo" style="display:none">
       최근 접속한 방: <code id="lastRoomCode"></code>
-      <br><button class="btn-room btn-room-join" style="margin-top:10px;font-size:13px;padding:10px" onclick="rejoinLastRoom()">다시 입장하기</button>
+      <input type="password" class="room-input" id="rejoinPwInput" placeholder="비밀번호 입력" maxlength="10"
+        style="letter-spacing:2px;font-size:14px;margin-top:10px;width:100%"
+        onkeydown="if(event.key==='Enter') rejoinLastRoom()">
+      <button class="btn-room btn-room-join" style="margin-top:8px;font-size:13px;padding:10px" onclick="rejoinLastRoom()">다시 입장하기</button>
     </div>
   </div>
 
@@ -374,6 +404,18 @@
             onkeydown="if(event.key==='Enter') addAmountPreset()">
           <button class="btn-add" onclick="addAmountPreset()">추가</button>
         </div>
+      </div>
+
+      <!-- 방 관리 -->
+      <div class="settings-section" id="roomManageSection" style="display:none">
+        <div class="settings-section-title" style="color:#c00">방 관리</div>
+        <div style="font-size:13px;color:#666;margin-bottom:10px">
+          방 코드: <strong id="settingsRoomCode"></strong>
+        </div>
+        <button onclick="deleteRoom()" style="width:100%;padding:12px;background:#fee;color:#c00;border:1.5px solid #fcc;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
+          방 삭제 (모든 데이터 삭제)
+        </button>
+        <div style="font-size:11px;color:#aaa;margin-top:6px">삭제 시 모든 접수 기록이 영구 삭제됩니다</div>
       </div>
 
       <div class="modal-actions">
@@ -506,6 +548,8 @@
       return code;
     }
 
+    let pendingRoomCode = null; // 모달에서 입장 대기 중인 코드
+
     async function createRoom() {
       if (!firestoreReady) {
         showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
@@ -517,20 +561,69 @@
         document.getElementById('roomPwInput').focus();
         return;
       }
-      const code = generateRoomCode();
-      try {
-        const hashedPw = await hashPassword(pw);
-        // Firestore에 이벤트(방) 문서 생성 (해시된 비밀번호)
-        await db.collection('events').doc(code).set({
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          code: code,
-          password: hashedPw
-        });
-        roomPassword = hashedPw;
-        enterRoom(code);
-      } catch (e) {
-        console.error('[Room] 방 생성 실패:', e);
-        showRoomToast('방 생성에 실패했습니다. 네트워크를 확인하세요.');
+      const hashedPw = await hashPassword(pw);
+
+      // 중복 체크 + 재시도 (최대 3회)
+      let code, created = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        code = generateRoomCode();
+        try {
+          const ref = db.collection('events').doc(code);
+          await db.runTransaction(async tx => {
+            const doc = await tx.get(ref);
+            if (doc.exists) throw new Error('duplicate');
+            tx.set(ref, {
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              code: code,
+              password: hashedPw
+            });
+          });
+          created = true;
+          break;
+        } catch (e) {
+          if (e.message === 'duplicate') continue;
+          console.error('[Room] 방 생성 실패:', e);
+          showRoomToast('방 생성에 실패했습니다. 네트워크를 확인하세요.');
+          return;
+        }
+      }
+      if (!created) {
+        showRoomToast('방 코드 생성에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+      roomPassword = hashedPw;
+      pendingRoomCode = code;
+      // 코드 확인 모달 표시
+      document.getElementById('createdRoomCode').textContent = code;
+      document.getElementById('roomCreatedModal').classList.add('show');
+    }
+
+    function copyRoomCode() {
+      const code = document.getElementById('createdRoomCode').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        showRoomToast('방 코드가 복사되었습니다!');
+      }).catch(() => {
+        showRoomToast('복사에 실패했습니다. 직접 메모해주세요.');
+      });
+    }
+
+    function shareRoomCode() {
+      const code = document.getElementById('createdRoomCode').textContent;
+      if (navigator.share) {
+        navigator.share({
+          title: '축의금 접수 방 코드',
+          text: `축의금 접수 방 코드: ${code}\n접속 주소: ${location.href}`
+        }).catch(() => {});
+      } else {
+        copyRoomCode();
+      }
+    }
+
+    function confirmEnterRoom() {
+      document.getElementById('roomCreatedModal').classList.remove('show');
+      if (pendingRoomCode) {
+        enterRoom(pendingRoomCode);
+        pendingRoomCode = null;
       }
     }
 
@@ -568,17 +661,37 @@
     async function rejoinLastRoom() {
       const code = localStorage.getItem(ROOM_KEY);
       if (!code) return;
-      // Firestore에서 비밀번호 로드
+      // Firestore에서 비밀번호 로드 + 검증
       if (firestoreReady) {
         try {
           const doc = await db.collection('events').doc(code).get();
-          if (doc.exists) {
-            const pw = doc.data().password || null;
-            roomPassword = pw;
-            if (pw && pw.length < 64) {
-              const hashed = await hashPassword(pw);
-              roomPassword = hashed;
-              db.collection('events').doc(code).update({ password: hashed }).catch(() => {});
+          if (!doc.exists) {
+            showRoomToast('방이 삭제되었습니다.');
+            localStorage.removeItem(ROOM_KEY);
+            checkLastRoom();
+            return;
+          }
+          const pw = doc.data().password || null;
+          roomPassword = pw;
+          if (pw && pw.length < 64) {
+            const hashed = await hashPassword(pw);
+            roomPassword = hashed;
+            db.collection('events').doc(code).update({ password: hashed }).catch(() => {});
+          }
+          // 비밀번호 검증
+          if (roomPassword) {
+            const inputPw = (document.getElementById('rejoinPwInput')?.value || '').trim();
+            if (!inputPw) {
+              showRoomToast('비밀번호를 입력해주세요.');
+              document.getElementById('rejoinPwInput')?.focus();
+              return;
+            }
+            const hashedInput = await hashPassword(inputPw);
+            if (hashedInput !== roomPassword) {
+              showRoomToast('비밀번호가 틀렸습니다.');
+              document.getElementById('rejoinPwInput').value = '';
+              document.getElementById('rejoinPwInput')?.focus();
+              return;
             }
           }
         } catch (e) {
@@ -601,6 +714,8 @@
       init();
       // Firestore 실시간 구독 시작
       startFirestoreSync();
+      // 공유 설정 로드
+      loadSharedSettings();
       updateSyncStatus();
     }
 
@@ -645,7 +760,7 @@
 
         // Firestore 데이터로 records 교체
         records = firestoreRecords.map(r => ({
-          id: r.id || parseInt(r._docId),
+          id: r.id || r._docId,
           name: r.name || '',
           affiliation: r.affiliation || '',
           amount: r.amount || 0,
@@ -791,7 +906,31 @@
       localStorage.setItem(DATA_KEY, JSON.stringify(records));
       if (el) el.textContent = '🟢 저장됨';
     }
-    function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+    function saveSettings() {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      // Firestore에도 설정 동기화
+      if (firestoreReady && currentRoomCode) {
+        db.collection('events').doc(currentRoomCode).collection('settings').doc('shared').set({
+          affilTags: settings.affilTags,
+          amountPresets: settings.amountPresets
+        }).catch(() => {});
+      }
+    }
+
+    // Firestore에서 공유 설정 로드
+    function loadSharedSettings() {
+      if (!firestoreReady || !currentRoomCode) return;
+      db.collection('events').doc(currentRoomCode).collection('settings').doc('shared')
+        .onSnapshot(doc => {
+          if (doc.exists) {
+            const data = doc.data();
+            if (data.affilTags) settings.affilTags = data.affilTags;
+            if (data.amountPresets) settings.amountPresets = data.amountPresets;
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+            renderForms();
+          }
+        }, () => {});
+    }
 
     function updateAll() {
       updateHeader();
@@ -803,7 +942,44 @@
     // ── 설정: 소속 태그 ──────────────────────────────────
     function openSettings() {
       renderSettingsChips();
+      // 방 관리 섹션 표시
+      const rmSection = document.getElementById('roomManageSection');
+      if (currentRoomCode) {
+        rmSection.style.display = 'block';
+        document.getElementById('settingsRoomCode').textContent = currentRoomCode;
+      } else {
+        rmSection.style.display = 'none';
+      }
       document.getElementById('settingsModal').classList.add('show');
+    }
+
+    async function deleteRoom() {
+      if (!currentRoomCode || !firestoreReady) return;
+      if (!confirm('정말 이 방을 삭제하시겠습니까?\n모든 접수 기록이 영구 삭제됩니다.')) return;
+      if (!confirm('되돌릴 수 없습니다. 정말 삭제하시겠습니까?')) return;
+      try {
+        // records 하위 컬렉션 삭제
+        const records_snap = await db.collection('events').doc(currentRoomCode).collection('records').get();
+        const batch1 = db.batch();
+        records_snap.forEach(doc => batch1.delete(doc.ref));
+        await batch1.commit();
+        // settings 하위 컬렉션 삭제
+        const settings_snap = await db.collection('events').doc(currentRoomCode).collection('settings').get();
+        const batch2 = db.batch();
+        settings_snap.forEach(doc => batch2.delete(doc.ref));
+        await batch2.commit();
+        // 방 문서 삭제
+        await db.collection('events').doc(currentRoomCode).delete();
+        // 로컬 정리
+        records = [];
+        localStorage.removeItem(DATA_KEY);
+        closeModal('settingsModal');
+        leaveRoom();
+        alert('방이 삭제되었습니다.');
+      } catch (e) {
+        console.error('[Room] 삭제 실패:', e);
+        alert('방 삭제에 실패했습니다.');
+      }
     }
 
     function renderSettingsChips() {
@@ -1050,7 +1226,8 @@
         return;
       }
 
-      const newRecord = { id: Date.now(), name, affiliation, amount, side: currentSide, memo, createdAt: new Date().toISOString() };
+      const id = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+      const newRecord = { id, name, affiliation, amount, side: currentSide, memo, createdAt: new Date().toISOString() };
       records.unshift(newRecord);
       saveData();
       saveToFirestore(newRecord);
@@ -1107,8 +1284,8 @@
           <div class="record-right">
             <div class="record-amount">${r.amount}만원</div>
             <div class="record-actions">
-              <button class="btn-edit"   onclick="openEditModal(${r.id})">수정</button>
-              <button class="btn-delete" onclick="openDeleteModal(${r.id},'${esc(r.name)}')">삭제</button>
+              <button class="btn-edit"   onclick="openEditModal('${r.id}')">수정</button>
+              <button class="btn-delete" onclick="openDeleteModal('${r.id}','${esc(r.name)}')">삭제</button>
             </div>
           </div>
         </div>
