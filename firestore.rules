@@ -9,8 +9,9 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.resource.data.keys().hasAll(['code', 'createdAt', 'password'])
                     && request.resource.data.code == roomCode;
-      // 방 문서 수정/삭제는 불가
-      allow update, delete: if false;
+      // password 해시 마이그레이션만 허용, 삭제 불가
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password']);
+      allow delete: if false;
 
       // events/{roomCode}/records/{recordId} — 축의금 기록
       match /records/{recordId} {

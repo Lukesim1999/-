@@ -519,13 +519,14 @@
       }
       const code = generateRoomCode();
       try {
-        // Firestore에 이벤트(방) 문서 생성 (비밀번호 포함)
+        const hashedPw = await hashPassword(pw);
+        // Firestore에 이벤트(방) 문서 생성 (해시된 비밀번호)
         await db.collection('events').doc(code).set({
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           code: code,
-          password: pw
+          password: hashedPw
         });
-        roomPassword = pw;
+        roomPassword = hashedPw;
         enterRoom(code);
       } catch (e) {
         console.error('[Room] 방 생성 실패:', e);
@@ -549,7 +550,14 @@
           showRoomToast('존재하지 않는 방 코드입니다.');
           return;
         }
-        roomPassword = doc.data().password || null;
+        const pw = doc.data().password || null;
+        roomPassword = pw;
+        // 기존 평문 비밀번호 → 해시로 마이그레이션 (SHA-256 해시는 64자)
+        if (pw && pw.length < 64) {
+          const hashed = await hashPassword(pw);
+          roomPassword = hashed;
+          db.collection('events').doc(code).update({ password: hashed }).catch(() => {});
+        }
         enterRoom(code);
       } catch (e) {
         console.error('[Room] 참가 실패:', e);
@@ -565,7 +573,13 @@
         try {
           const doc = await db.collection('events').doc(code).get();
           if (doc.exists) {
-            roomPassword = doc.data().password || null;
+            const pw = doc.data().password || null;
+            roomPassword = pw;
+            if (pw && pw.length < 64) {
+              const hashed = await hashPassword(pw);
+              roomPassword = hashed;
+              db.collection('events').doc(code).update({ password: hashed }).catch(() => {});
+            }
           }
         } catch (e) {
           console.warn('[Room] 비밀번호 로드 실패, 로컬 폴백');
@@ -593,11 +607,17 @@
     function leaveRoom() {
       if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
       currentRoomCode = null;
+      roomPassword = null;
+      isUnlocked = false;
+      pwFailCount = 0;
       localStorage.removeItem(ROOM_KEY);
       document.getElementById('roomInfoBar').style.display = 'none';
       document.getElementById('mainApp').style.display = 'none';
       document.getElementById('roomScreen').style.display = 'flex';
       document.getElementById('syncStatus').textContent = '';
+      // 태블릿 잠금 화면 복원
+      document.getElementById('t-lock-screen').style.display = 'flex';
+      document.getElementById('t-locked-content').style.display = 'none';
       // 최근 방 표시 업데이트
       checkLastRoom();
     }
@@ -735,7 +755,18 @@
     let pendingTab    = null;
     let pendingScope  = null;
     let currentTabletTab = null;
-    let roomPassword  = null; // Firestore에서 로드
+    let roomPassword  = null; // Firestore에서 로드 (SHA-256 해시값)
+    let pwFailCount   = 0;    // 비밀번호 실패 횟수
+    let pwLockUntil   = 0;    // 잠금 해제 시각 (timestamp)
+
+    // SHA-256 해시 함수
+    async function hashPassword(pw) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(pw);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
 
     // ── Init ────────────────────────────────────────────
     function init() {
@@ -1358,10 +1389,39 @@
       document.querySelectorAll('.panel-tab').forEach(el => el.classList.remove('active'));
     }
 
-    function verifyInline(scope) {
-      const val = document.getElementById(scope + '-lock-input').value;
-      if (!roomPassword || val === roomPassword) {
+    // 비밀번호 잠금 체크
+    function checkPwLock() {
+      if (pwLockUntil > Date.now()) {
+        const sec = Math.ceil((pwLockUntil - Date.now()) / 1000);
+        showToast(`${sec}초 후에 다시 시도해주세요`);
+        return true;
+      }
+      return false;
+    }
+
+    function onPwFail(inputEl) {
+      pwFailCount++;
+      if (pwFailCount >= 5) {
+        pwLockUntil = Date.now() + 300000; // 5분
+        showToast('5회 실패 — 5분 후 다시 시도해주세요');
+      } else if (pwFailCount >= 3) {
+        pwLockUntil = Date.now() + 30000; // 30초
+        showToast(`비밀번호가 틀렸습니다 (${pwFailCount}회 실패, 30초 대기)`);
+      } else {
+        showToast('비밀번호가 틀렸습니다');
+      }
+      inputEl.value = '';
+      inputEl.focus();
+    }
+
+    async function verifyInline(scope) {
+      if (checkPwLock()) return;
+      const inputEl = document.getElementById(scope + '-lock-input');
+      const val = inputEl.value;
+      const hashedVal = await hashPassword(val);
+      if (!roomPassword || hashedVal === roomPassword) {
         isUnlocked = true;
+        pwFailCount = 0;
         if (scope === 'm') {
           document.querySelectorAll('.mobile-section').forEach(el => el.classList.remove('active'));
           document.getElementById('m-section-' + (pendingTab || 'list')).classList.add('active');
@@ -1376,22 +1436,22 @@
         currentTabletTab = pendingTab || 'list';
         pendingTab = pendingScope = null;
       } else {
-        showToast('비밀번호가 틀렸습니다');
-        document.getElementById(scope + '-lock-input').value = '';
-        document.getElementById(scope + '-lock-input').focus();
+        onPwFail(inputEl);
       }
     }
 
-    function verifyPassword() {
-      const val = document.getElementById('pwInput').value;
-      if (!roomPassword || val === roomPassword) {
+    async function verifyPassword() {
+      if (checkPwLock()) return;
+      const inputEl = document.getElementById('pwInput');
+      const val = inputEl.value;
+      const hashedVal = await hashPassword(val);
+      if (!roomPassword || hashedVal === roomPassword) {
         isUnlocked = true;
+        pwFailCount = 0;
         closeModal('pwModal');
         pendingTab = pendingScope = null;
       } else {
-        showToast('비밀번호가 틀렸습니다');
-        document.getElementById('pwInput').value = '';
-        document.getElementById('pwInput').focus();
+        onPwFail(inputEl);
       }
     }
 
@@ -1449,8 +1509,15 @@
       const savedRoom = localStorage.getItem(ROOM_KEY);
       if (savedRoom && firestoreReady) {
         // 방 존재 여부 확인 후 입장 (비동기)
-        db.collection('events').doc(savedRoom).get().then(doc => {
+        db.collection('events').doc(savedRoom).get().then(async doc => {
           if (doc.exists) {
+            const pw = doc.data().password || null;
+            roomPassword = pw;
+            if (pw && pw.length < 64) {
+              const hashed = await hashPassword(pw);
+              roomPassword = hashed;
+              db.collection('events').doc(savedRoom).update({ password: hashed }).catch(() => {});
+            }
             enterRoom(savedRoom);
           } else {
             // 방이 삭제됨 — 입장 화면 유지
