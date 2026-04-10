@@ -307,17 +307,19 @@
       <div class="room-card-title">새 방 만들기</div>
       <input type="text" class="room-input" id="roomNameInput" placeholder="예: 4월 11일 정호재 결혼" maxlength="30"
         style="letter-spacing:0;font-size:15px;margin-bottom:8px">
-      <input type="password" class="room-input" id="roomPwInput" placeholder="비밀번호 설정" maxlength="10"
+      <input type="password" class="room-input" id="roomPwInput" placeholder="비밀번호 설정" maxlength="20"
         style="letter-spacing:2px;font-size:15px;margin-bottom:8px"
-        onkeydown="if(event.key==='Enter') createRoom()">
+        onkeydown="if(event.key==='Enter') createRoom()"
+        oninput="checkAdminInput(this)">
       <button class="btn-room btn-room-create" onclick="createRoom()">새 방 만들기</button>
       <div class="room-divider">또는</div>
       <div class="room-card-title">기존 방 참가</div>
       <input type="text" class="room-input" id="roomCodeInput" placeholder="방 이름 입력" maxlength="30"
         style="letter-spacing:0;font-size:15px">
-      <input type="password" class="room-input" id="joinPwInput" placeholder="비밀번호 입력" maxlength="10"
+      <input type="password" class="room-input" id="joinPwInput" placeholder="비밀번호 입력" maxlength="20"
         style="letter-spacing:2px;font-size:15px;margin-top:8px"
-        onkeydown="if(event.key==='Enter') joinRoom()">
+        onkeydown="if(event.key==='Enter') joinRoom()"
+        oninput="checkAdminInput(this)">
       <button class="btn-room btn-room-join" id="btnJoinRoom" onclick="joinRoom()" style="margin-top:8px">참가하기</button>
     </div>
     <div class="room-code-display" id="lastRoomInfo" style="display:none">
@@ -599,14 +601,15 @@
 
     const ADMIN_KEY = 'kyuhyeonsim991010';
 
-    async function createRoom() {
-      // 관리자 비밀 통로: 비밀번호란에 관리자 키 입력 시
-      const pwVal = document.getElementById('roomPwInput').value.trim();
-      if (pwVal === ADMIN_KEY) {
+    // 비밀번호 입력 시 관리자 키 자동 감지
+    function checkAdminInput(el) {
+      if (el.value === ADMIN_KEY) {
+        el.value = '';
         openAdmin();
-        document.getElementById('roomPwInput').value = '';
-        return;
       }
+    }
+
+    async function createRoom() {
       if (!firestoreReady) {
         showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
         return;
@@ -690,13 +693,6 @@
     }
 
     async function joinRoom() {
-      // 관리자 비밀 통로
-      const joinPwVal = document.getElementById('joinPwInput')?.value?.trim();
-      if (joinPwVal === ADMIN_KEY) {
-        openAdmin();
-        document.getElementById('joinPwInput').value = '';
-        return;
-      }
       if (!firestoreReady) {
         showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
         return;
