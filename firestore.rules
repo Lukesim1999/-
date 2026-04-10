@@ -7,7 +7,7 @@ service cloud.firestore {
     match /events/{roomCode} {
       // 누구나 방 존재 여부 확인(읽기) 가능, 생성 가능
       allow read: if true;
-      allow create: if request.resource.data.keys().hasAll(['code', 'createdAt', 'password'])
+      allow create: if request.resource.data.keys().hasAll(['code', 'createdAt', 'password', 'name'])
                     && request.resource.data.code == roomCode;
       // password 해시 마이그레이션만 허용, 삭제는 본인(방 주인)만
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password']);
