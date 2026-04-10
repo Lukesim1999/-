@@ -66,6 +66,7 @@
     .list-count { font-size: 12px; color: #aaa; margin-bottom: 10px; }
 
     .record-item { background: white; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .record-num { min-width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: #e8edf3; color: #2d5a8e; font-size: 12px; font-weight: 700; border-radius: 50%; flex-shrink: 0; }
     .record-info { flex: 1; min-width: 0; }
     .record-name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .record-name { font-size: 15px; font-weight: 600; color: #222; }
@@ -487,6 +488,11 @@
         </div>
       </div>
       <div class="form-group">
+        <label class="form-label">번호</label>
+        <input type="text" class="form-input" id="editNum" inputmode="numeric" pattern="[0-9]*"
+          style="width:80px;text-align:center;font-weight:700">
+      </div>
+      <div class="form-group">
         <label class="form-label">이름</label>
         <input type="text" class="form-input" id="editName" autocomplete="off">
       </div>
@@ -850,6 +856,7 @@
         // Firestore 데이터로 records 교체
         records = firestoreRecords.map(r => ({
           id: r.id || r._docId,
+          num: r.num || 0,
           name: r.name || '',
           affiliation: r.affiliation || '',
           amount: r.amount || 0,
@@ -884,6 +891,7 @@
         await db.collection('events').doc(currentRoomCode).collection('records')
           .doc(String(record.id)).set({
             id: record.id,
+            num: record.num || 0,
             name: record.name,
             affiliation: record.affiliation || '',
             amount: record.amount,
@@ -915,6 +923,7 @@
         if (syncEl) syncEl.textContent = '🟡 동기화 중...';
         await db.collection('events').doc(currentRoomCode).collection('records')
           .doc(String(record.id)).update({
+            num: record.num || 0,
             name: record.name,
             affiliation: record.affiliation || '',
             amount: record.amount,
@@ -1207,6 +1216,12 @@
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label">번호</label>
+          <input type="text" class="form-input" id="${prefix}inputNum"
+            inputmode="numeric" pattern="[0-9]*" placeholder="자동 채번"
+            style="width:80px;text-align:center;font-weight:700">
+        </div>
+        <div class="form-group">
           <label class="form-label">이름 <span style="color:#c00">*</span></label>
           <input type="text" class="form-input" id="${prefix}inputName" placeholder="하객 성함" autocomplete="off">
         </div>
@@ -1241,6 +1256,12 @@
       document.getElementById('t-form-area').innerHTML = formHTML('t-');
       // 현재 측 상태 유지
       selectSide(currentSide);
+      // 다음 번호 자동 채우기
+      const next = getNextNum();
+      const mNum = document.getElementById('m-inputNum');
+      const tNum = document.getElementById('t-inputNum');
+      if (mNum) mNum.value = next;
+      if (tNum) tNum.value = next;
     }
 
     // ── 소속 태그 선택 ────────────────────────────────────
@@ -1304,12 +1325,19 @@
     }
 
     // ── 접수 저장 ─────────────────────────────────────────
+    function getNextNum() {
+      if (!records.length) return 1;
+      return Math.max(...records.map(r => r.num || 0)) + 1;
+    }
+
     function submitRecord(prefix) {
       const name        = (document.getElementById(prefix + 'inputName')?.value || '').trim();
       const amountRaw   = (document.getElementById(prefix + 'inputAmount')?.value || '').replace(/[^0-9]/g, '');
       const amount      = parseInt(amountRaw, 10);
       const affiliation = (document.getElementById(prefix + 'inputAffiliation')?.value || '').trim();
       const memo        = (document.getElementById(prefix + 'inputMemo')?.value || '').trim();
+      const numRaw      = (document.getElementById(prefix + 'inputNum')?.value || '').replace(/[^0-9]/g, '');
+      const num         = numRaw ? parseInt(numRaw, 10) : getNextNum();
 
       if (!name) { showToast('이름을 입력해주세요'); return; }
       if (!amountRaw || isNaN(amount) || amount <= 0) { showToast('금액을 입력해주세요'); return; }
@@ -1324,22 +1352,25 @@
       }
 
       const id = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2, 8));
-      const newRecord = { id, name, affiliation, amount, side: currentSide, memo, createdAt: new Date().toISOString() };
+      const newRecord = { id, num, name, affiliation, amount, side: currentSide, memo, createdAt: new Date().toISOString() };
       records.unshift(newRecord);
       saveData();
       saveToFirestore(newRecord);
       updateAll();
       resetForm(prefix);
-      showToast(`${name}님 ${amount}만원 저장 완료`);
+      showToast(`#${num} ${name}님 ${amount}만원 저장 완료`);
     }
 
     function resetForm(prefix) {
-      ['inputName','inputAffiliation','inputAmount','inputMemo'].forEach(id => {
+      ['inputNum','inputName','inputAffiliation','inputAmount','inputMemo'].forEach(id => {
         const el = document.getElementById(prefix + id);
         if (el) el.value = '';
       });
       clearPreset(prefix);
       syncAffilTags(prefix);
+      // 다음 번호 자동 채우기
+      const numEl = document.getElementById(prefix + 'inputNum');
+      if (numEl) numEl.value = getNextNum();
       document.getElementById(prefix + 'inputName')?.focus();
     }
 
@@ -1371,6 +1402,7 @@
 
       container.innerHTML = fl.map(r => `
         <div class="record-item">
+          <div class="record-num">${r.num || '-'}</div>
           <div class="record-info">
             <div class="record-name-row">
               <span class="record-name">${esc(r.name)}</span>
@@ -1501,8 +1533,8 @@
     function copyToClipboard() {
       if (!records.length) { showToast('저장된 데이터가 없습니다'); return; }
       const total = records.reduce((s, r) => s + r.amount, 0);
-      const lines = records.map((r, i) =>
-        `${i+1}. ${r.name}${r.affiliation ? ' ('+r.affiliation+')' : ''} | ${r.side}측 | ${r.amount}만원${r.memo ? ' | '+r.memo : ''}`
+      const lines = records.map(r =>
+        `#${r.num || '-'} ${r.name}${r.affiliation ? ' ('+r.affiliation+')' : ''} | ${r.side}측 | ${r.amount}만원${r.memo ? ' | '+r.memo : ''}`
       );
       navigator.clipboard.writeText(`축의금 접수 목록 (${formatDate()})\n총 ${records.length}건 · ${formatAmount(total)}\n\n` + lines.join('\n'))
         .then(() => showToast('클립보드에 복사됐습니다'));
@@ -1546,6 +1578,7 @@
       if (!r) return;
       editingId   = id;
       editingSide = r.side;
+      document.getElementById('editNum').value         = r.num || '';
       document.getElementById('editName').value        = r.name;
       document.getElementById('editAffiliation').value = r.affiliation || '';
       document.getElementById('editAmount').value      = r.amount;
@@ -1561,11 +1594,13 @@
       const amount      = parseInt(amountRaw, 10);
       const affiliation = document.getElementById('editAffiliation').value.trim();
       const memo        = document.getElementById('editMemo').value.trim();
+      const numRaw      = (document.getElementById('editNum').value || '').replace(/[^0-9]/g, '');
+      const num         = numRaw ? parseInt(numRaw, 10) : 0;
       if (!name) { showToast('이름을 입력해주세요'); return; }
       if (!amount || amount <= 0) { showToast('금액을 입력해주세요'); return; }
       const idx = records.findIndex(r => r.id === editingId);
       if (idx !== -1) {
-        records[idx] = { ...records[idx], name, affiliation, amount, side: editingSide, memo };
+        records[idx] = { ...records[idx], num, name, affiliation, amount, side: editingSide, memo };
         saveData();
         updateInFirestore(records[idx]);
         updateAll();

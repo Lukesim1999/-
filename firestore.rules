@@ -26,12 +26,14 @@ service cloud.firestore {
                       && request.resource.data.name is string
                       && request.resource.data.amount is number
                       && request.resource.data.amount > 0
-                      && request.resource.data.side in ['신랑', '신부'];
+                      && request.resource.data.side in ['신랑', '신부']
+                      && (!('num' in request.resource.data) || request.resource.data.num is number);
         // 수정: 주요 필드만 변경 가능
         allow update: if request.resource.data.name is string
                       && request.resource.data.amount is number
                       && request.resource.data.amount > 0
-                      && request.resource.data.side in ['신랑', '신부'];
+                      && request.resource.data.side in ['신랑', '신부']
+                      && (!('num' in request.resource.data) || request.resource.data.num is number);
         // 삭제 허용
         allow delete: if true;
       }
