@@ -267,9 +267,11 @@
       <div class="room-divider">또는</div>
       <div class="room-card-title">기존 방 참가</div>
       <input type="text" class="room-input" id="roomCodeInput" placeholder="방 코드 입력" maxlength="6"
-        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+      <input type="password" class="room-input" id="joinPwInput" placeholder="비밀번호 입력" maxlength="10"
+        style="letter-spacing:2px;font-size:15px;margin-top:8px"
         onkeydown="if(event.key==='Enter') joinRoom()">
-      <button class="btn-room btn-room-join" id="btnJoinRoom" onclick="joinRoom()">참가하기</button>
+      <button class="btn-room btn-room-join" id="btnJoinRoom" onclick="joinRoom()" style="margin-top:8px">참가하기</button>
     </div>
     <div class="room-code-display" id="lastRoomInfo" style="display:none">
       최근 접속한 방: <code id="lastRoomCode"></code>
@@ -645,11 +647,27 @@
         }
         const pw = doc.data().password || null;
         roomPassword = pw;
-        // 기존 평문 비밀번호 → 해시로 마이그레이션 (SHA-256 해시는 64자)
+        // 기존 평문 비밀번호 → 해시로 마이그레이션
         if (pw && pw.length < 64) {
           const hashed = await hashPassword(pw);
           roomPassword = hashed;
           db.collection('events').doc(code).update({ password: hashed }).catch(() => {});
+        }
+        // 비밀번호 검증
+        if (roomPassword) {
+          const inputPw = (document.getElementById('joinPwInput')?.value || '').trim();
+          if (!inputPw) {
+            showRoomToast('비밀번호를 입력해주세요.');
+            document.getElementById('joinPwInput')?.focus();
+            return;
+          }
+          const hashedInput = await hashPassword(inputPw);
+          if (hashedInput !== roomPassword) {
+            showRoomToast('비밀번호가 틀렸습니다.');
+            document.getElementById('joinPwInput').value = '';
+            document.getElementById('joinPwInput')?.focus();
+            return;
+          }
         }
         enterRoom(code);
       } catch (e) {
@@ -1682,32 +1700,9 @@
       // 최근 방 코드 확인
       checkLastRoom();
 
-      // 저장된 방 코드가 있으면 자동 입장
-      const savedRoom = localStorage.getItem(ROOM_KEY);
-      if (savedRoom && firestoreReady) {
-        // 방 존재 여부 확인 후 입장 (비동기)
-        db.collection('events').doc(savedRoom).get().then(async doc => {
-          if (doc.exists) {
-            const pw = doc.data().password || null;
-            roomPassword = pw;
-            if (pw && pw.length < 64) {
-              const hashed = await hashPassword(pw);
-              roomPassword = hashed;
-              db.collection('events').doc(savedRoom).update({ password: hashed }).catch(() => {});
-            }
-            enterRoom(savedRoom);
-          } else {
-            // 방이 삭제됨 — 입장 화면 유지
-            localStorage.removeItem(ROOM_KEY);
-            checkLastRoom();
-          }
-        }).catch(() => {
-          // 오프라인이면 로컬 데이터로 일단 입장
-          if (!navigator.onLine) {
-            enterRoom(savedRoom);
-          }
-        });
-      } else if (!firestoreReady) {
+      // 자동 입장 없음 — 반드시 비밀번호 입력 후 입장
+      // (최근 방 코드는 checkLastRoom()에서 표시됨)
+      if (!firestoreReady) {
         // Firebase 미설정 시 — 로컬 전용 모드로 바로 입장
         document.getElementById('roomScreen').innerHTML = `
           <div class="room-logo">💍</div>
