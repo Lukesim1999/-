@@ -65,17 +65,28 @@
     .search-input:focus { outline: none; border-color: #2d5a8e; }
     .list-count { font-size: 12px; color: #aaa; margin-bottom: 10px; }
 
-    .record-item { background: white; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
-    .record-num { min-width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: #e8edf3; color: #2d5a8e; font-size: 12px; font-weight: 700; border-radius: 50%; flex-shrink: 0; }
-    .record-info { flex: 1; min-width: 0; }
-    .record-name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .record-name { font-size: 15px; font-weight: 600; color: #222; }
-    .record-sub { font-size: 12px; color: #999; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .record-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
-    .record-amount { font-size: 16px; font-weight: 700; color: #2d5a8e; }
-    .record-actions { display: flex; gap: 5px; }
-    .btn-edit   { padding: 5px 10px; background: #f0f0f0; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
-    .btn-delete { padding: 5px 10px; background: #fee; border: none; border-radius: 6px; font-size: 12px; color: #c00; cursor: pointer; }
+    /* ── Table List ── */
+    .record-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .record-table thead th { background: #f5f7fa; padding: 10px 8px; font-size: 12px; font-weight: 700; color: #666; text-align: left; white-space: nowrap; border-bottom: 2px solid #e8ecf1; position: sticky; top: 0; z-index: 1; }
+    .record-table thead th:first-child { text-align: center; width: 40px; }
+    .record-table thead th:last-child { text-align: right; }
+    .record-table thead th.col-amount { text-align: right; }
+    .record-table tbody tr { cursor: pointer; transition: background 0.12s; border-bottom: 1px solid #f0f0f0; }
+    .record-table tbody tr:last-child { border-bottom: none; }
+    .record-table tbody tr:active { background: #e8f0fb; }
+    @media (hover:hover) { .record-table tbody tr:hover { background: #f5f8fc; } }
+    .record-table td { padding: 11px 8px; font-size: 14px; color: #333; vertical-align: middle; }
+    .record-table td:first-child { text-align: center; }
+    .record-table .td-num { font-weight: 700; color: #2d5a8e; font-size: 13px; }
+    .record-table .td-name { font-weight: 600; color: #222; }
+    .record-table .td-affil { color: #888; font-size: 13px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .record-table .td-amount { text-align: right; font-weight: 700; color: #2d5a8e; white-space: nowrap; }
+    .record-table .td-side { text-align: center; }
+    .td-memo-icon { color: #bbb; font-size: 12px; margin-left: 2px; }
+    @media (max-width: 400px) {
+      .record-table .col-affil, .record-table .td-affil { display: none; }
+      .record-table td { padding: 10px 6px; font-size: 13px; }
+    }
 
     .side-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
     .badge-groom { background: #e8f0fb; color: #2d5a8e; }
@@ -129,6 +140,8 @@
     .btn-cancel  { flex: 1; padding: 13px; background: #f0f0f0; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: 500; }
     .btn-confirm { flex: 1; padding: 13px; background: #2d5a8e; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
     .btn-confirm.danger { background: #c62828; }
+    .btn-edit-delete { width: 100%; padding: 12px; background: none; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; color: #c00; cursor: pointer; margin-top: 12px; font-weight: 500; transition: background 0.15s; }
+    .btn-edit-delete:active { background: #fee; }
     .confirm-modal { border-radius: 12px; padding: 24px 20px; width: calc(100% - 48px); max-width: 340px; margin: auto; }
     .confirm-desc  { font-size: 14px; color: #666; margin-top: 6px; }
 
@@ -513,6 +526,7 @@
         <button class="btn-cancel" onclick="closeModal('editModal')">취소</button>
         <button class="btn-confirm" onclick="saveEdit()">저장</button>
       </div>
+      <button class="btn-edit-delete" onclick="deleteFromEdit()">이 접수 삭제</button>
     </div>
   </div>
 
@@ -1400,25 +1414,23 @@
         return;
       }
 
-      container.innerHTML = fl.map(r => `
-        <div class="record-item">
-          <div class="record-num">${r.num || '-'}</div>
-          <div class="record-info">
-            <div class="record-name-row">
-              <span class="record-name">${esc(r.name)}</span>
-              <span class="side-badge ${r.side === '신랑' ? 'badge-groom' : 'badge-bride'}">${r.side}측</span>
-            </div>
-            <div class="record-sub">${r.affiliation ? esc(r.affiliation) + ' · ' : ''}${formatTime(r.createdAt)}${r.memo ? ' · ' + esc(r.memo) : ''}</div>
-          </div>
-          <div class="record-right">
-            <div class="record-amount">${r.amount}만원</div>
-            <div class="record-actions">
-              <button class="btn-edit"   onclick="openEditModal('${r.id}')">수정</button>
-              <button class="btn-delete" onclick="openDeleteModal('${r.id}','${esc(r.name)}')">삭제</button>
-            </div>
-          </div>
-        </div>
+      const rows = fl.map(r => `
+        <tr onclick="openEditModal('${r.id}')">
+          <td class="td-num">${r.num || '-'}</td>
+          <td class="td-name">${esc(r.name)}${r.memo ? '<span class="td-memo-icon" title="' + esc(r.memo) + '">📝</span>' : ''}</td>
+          <td class="td-affil col-affil">${esc(r.affiliation || '-')}</td>
+          <td class="td-amount">${r.amount}만원</td>
+          <td class="td-side"><span class="side-badge ${r.side === '신랑' ? 'badge-groom' : 'badge-bride'}">${r.side}</span></td>
+        </tr>
       `).join('');
+
+      container.innerHTML = `
+        <table class="record-table">
+          <thead><tr>
+            <th>#</th><th>이름</th><th class="col-affil">소속</th><th class="col-amount">금액</th><th>측</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
     }
 
     // ── 요약 ─────────────────────────────────────────────
@@ -1607,6 +1619,13 @@
         showToast('수정 완료');
       }
       closeModal('editModal');
+    }
+
+    function deleteFromEdit() {
+      if (!editingId) return;
+      const r = records.find(r => r.id === editingId);
+      closeModal('editModal');
+      if (r) openDeleteModal(editingId, r.name);
     }
 
     // ── 삭제 + Undo ───────────────────────────────────────
