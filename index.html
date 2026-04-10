@@ -147,6 +147,29 @@
     .settings-chip-edit:hover { color: #2d5a8e; }
     .chip-edit-input { border: 1.5px solid #2d5a8e; border-radius: 20px; padding: 4px 10px; font-size: 13px; outline: none; width: 90px; }
 
+    /* ── Admin Page ── */
+    .admin-screen { display:none; position:fixed; inset:0; background:#f0f2f5; z-index:9998; overflow-y:auto; }
+    .admin-screen.show { display:block; }
+    .admin-header { background:#1a1a2e; color:white; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; }
+    .admin-header-title { font-size:16px; font-weight:700; }
+    .admin-back-btn { background:rgba(255,255,255,0.15); border:none; color:white; padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer; }
+    .admin-body { padding:16px; max-width:600px; margin:0 auto; }
+    .admin-stat { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+    .admin-stat-card { background:white; border-radius:10px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,0.07); text-align:center; }
+    .admin-stat-value { font-size:24px; font-weight:700; color:#1a1a2e; }
+    .admin-stat-label { font-size:12px; color:#999; margin-top:4px; }
+    .admin-room-card { background:white; border-radius:10px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.07); }
+    .admin-room-top { display:flex; justify-content:space-between; align-items:center; }
+    .admin-room-name { font-size:15px; font-weight:600; color:#222; }
+    .admin-room-meta { font-size:12px; color:#999; margin-top:4px; }
+    .admin-room-stats { font-size:13px; color:#2d5a8e; font-weight:600; margin-top:6px; }
+    .admin-room-actions { display:flex; gap:6px; margin-top:10px; }
+    .admin-room-actions button { padding:7px 14px; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+    .admin-btn-enter { background:#e8f0fb; color:#2d5a8e; }
+    .admin-btn-delete { background:#fee; color:#c00; }
+    .admin-loading { text-align:center; padding:40px; color:#999; font-size:14px; }
+    .admin-empty { text-align:center; padding:40px; color:#bbb; }
+
     /* ── Room Created Modal ── */
     .room-created-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; }
     .room-created-overlay.show { display:flex; }
@@ -236,6 +259,29 @@
   </style>
 </head>
 <body>
+
+  <!-- ══ Admin Page ══ -->
+  <div class="admin-screen" id="adminScreen">
+    <div class="admin-header">
+      <div class="admin-header-title">관리자</div>
+      <button class="admin-back-btn" onclick="exitAdmin()">나가기</button>
+    </div>
+    <div class="admin-body">
+      <div class="admin-stat">
+        <div class="admin-stat-card">
+          <div class="admin-stat-value" id="adminTotalRooms">-</div>
+          <div class="admin-stat-label">전체 방</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-value" id="adminTotalRecords">-</div>
+          <div class="admin-stat-label">전체 접수 건</div>
+        </div>
+      </div>
+      <div id="adminRoomList">
+        <div class="admin-loading">불러오는 중...</div>
+      </div>
+    </div>
+  </div>
 
   <!-- ══ Room Created Modal ══ -->
   <div class="room-created-overlay" id="roomCreatedModal">
@@ -551,7 +597,16 @@
 
     let pendingRoomCode = null; // 모달에서 입장 대기 중인 이름
 
+    const ADMIN_KEY = 'kyuhyeonsim991010';
+
     async function createRoom() {
+      // 관리자 비밀 통로: 비밀번호란에 관리자 키 입력 시
+      const pwVal = document.getElementById('roomPwInput').value.trim();
+      if (pwVal === ADMIN_KEY) {
+        openAdmin();
+        document.getElementById('roomPwInput').value = '';
+        return;
+      }
       if (!firestoreReady) {
         showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
         return;
@@ -635,6 +690,13 @@
     }
 
     async function joinRoom() {
+      // 관리자 비밀 통로
+      const joinPwVal = document.getElementById('joinPwInput')?.value?.trim();
+      if (joinPwVal === ADMIN_KEY) {
+        openAdmin();
+        document.getElementById('joinPwInput').value = '';
+        return;
+      }
       if (!firestoreReady) {
         showRoomToast('Firebase 설정이 필요합니다. firebaseConfig를 확인하세요.');
         return;
@@ -1710,6 +1772,114 @@
     function formatTime(iso) { const d = new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
     function formatDate()    { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
     function esc(str)        { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+    // ══════════════════════════════════════════════════════
+    // ── 관리자 페이지 ────────────────────────────────────
+    // ══════════════════════════════════════════════════════
+    async function openAdmin() {
+      if (!firestoreReady) { alert('Firebase 연결이 필요합니다.'); return; }
+      document.getElementById('adminScreen').classList.add('show');
+      await loadAdminRooms();
+    }
+
+    function exitAdmin() {
+      document.getElementById('adminScreen').classList.remove('show');
+    }
+
+    async function loadAdminRooms() {
+      const listEl = document.getElementById('adminRoomList');
+      listEl.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+
+      try {
+        const snapshot = await db.collection('events').get();
+        const rooms = [];
+        snapshot.forEach(doc => {
+          rooms.push({ docId: doc.id, ...doc.data() });
+        });
+
+        if (rooms.length === 0) {
+          listEl.innerHTML = '<div class="admin-empty">생성된 방이 없습니다</div>';
+          document.getElementById('adminTotalRooms').textContent = '0';
+          document.getElementById('adminTotalRecords').textContent = '0';
+          return;
+        }
+
+        document.getElementById('adminTotalRooms').textContent = rooms.length;
+
+        // 각 방의 records 수 조회
+        let totalRecords = 0;
+        const roomCards = [];
+
+        for (const room of rooms) {
+          const recordsSnap = await db.collection('events').doc(room.docId).collection('records').get();
+          const count = recordsSnap.size;
+          let sum = 0;
+          recordsSnap.forEach(d => { sum += (d.data().amount || 0); });
+          totalRecords += count;
+
+          const displayName = room.name || room.docId;
+          const created = room.createdAt?.toDate ? room.createdAt.toDate().toLocaleDateString('ko-KR') : '-';
+
+          roomCards.push(`
+            <div class="admin-room-card">
+              <div class="admin-room-top">
+                <div>
+                  <div class="admin-room-name">${esc(displayName)}</div>
+                  <div class="admin-room-meta">ID: ${esc(room.docId)} · 생성: ${created}</div>
+                </div>
+              </div>
+              <div class="admin-room-stats">${count}건 · ${sum.toLocaleString()}만원</div>
+              <div class="admin-room-actions">
+                <button class="admin-btn-enter" onclick="adminEnterRoom('${esc(room.docId)}')">입장</button>
+                <button class="admin-btn-delete" onclick="adminDeleteRoom('${esc(room.docId)}','${esc(displayName)}')">삭제</button>
+              </div>
+            </div>
+          `);
+        }
+
+        document.getElementById('adminTotalRecords').textContent = totalRecords;
+        listEl.innerHTML = roomCards.join('');
+      } catch (e) {
+        console.error('[Admin] 로드 실패:', e);
+        listEl.innerHTML = '<div class="admin-empty">로드 실패. 네트워크를 확인하세요.</div>';
+      }
+    }
+
+    async function adminEnterRoom(docId) {
+      // 관리자는 비밀번호 없이 입장
+      try {
+        const doc = await db.collection('events').doc(docId).get();
+        if (doc.exists) {
+          roomPassword = doc.data().password || null;
+          isUnlocked = true; // 관리자는 잠금 해제 상태로 입장
+        }
+      } catch (e) {}
+      document.getElementById('adminScreen').classList.remove('show');
+      enterRoom(docId);
+    }
+
+    async function adminDeleteRoom(docId, displayName) {
+      if (!confirm(`"${displayName}" 방을 삭제하시겠습니까?\n모든 접수 기록이 영구 삭제됩니다.`)) return;
+      try {
+        // records 삭제
+        const recSnap = await db.collection('events').doc(docId).collection('records').get();
+        const b1 = db.batch();
+        recSnap.forEach(d => b1.delete(d.ref));
+        await b1.commit();
+        // settings 삭제
+        const setSnap = await db.collection('events').doc(docId).collection('settings').get();
+        const b2 = db.batch();
+        setSnap.forEach(d => b2.delete(d.ref));
+        await b2.commit();
+        // 방 문서 삭제
+        await db.collection('events').doc(docId).delete();
+        alert('삭제되었습니다.');
+        await loadAdminRooms();
+      } catch (e) {
+        console.error('[Admin] 삭제 실패:', e);
+        alert('삭제에 실패했습니다.');
+      }
+    }
 
     // ══════════════════════════════════════════════════════
     // ── 앱 시작 ──────────────────────────────────────────
