@@ -83,6 +83,11 @@
     .record-table .td-amount { text-align: right; font-weight: 700; color: #2d5a8e; white-space: nowrap; }
     .record-table .td-side { text-align: center; }
     .td-memo-icon { color: #bbb; font-size: 12px; margin-left: 2px; }
+    .td-actions { white-space: nowrap; text-align: right; }
+    .tbl-btn-edit { padding: 4px 8px; background: #f0f0f0; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; color: #333; margin-right: 4px; }
+    .tbl-btn-edit:active { background: #ddd; }
+    .tbl-btn-del { padding: 4px 8px; background: #fee; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; color: #c00; }
+    .tbl-btn-del:active { background: #fcc; }
     @media (max-width: 400px) {
       .record-table .col-affil, .record-table .td-affil { display: none; }
       .record-table td { padding: 10px 6px; font-size: 13px; }
@@ -892,6 +897,15 @@
         // 최신순 정렬
         records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+        // 번호 없는 기존 레코드에 자동 채번
+        let maxNum = Math.max(0, ...records.map(r => r.num || 0));
+        const needsNum = records.filter(r => !r.num);
+        if (needsNum.length) {
+          // 오래된 순서로 번호 부여
+          needsNum.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+          needsNum.forEach(r => { r.num = ++maxNum; updateInFirestore(r); });
+        }
+
         // localStorage 백업
         localStorage.setItem(DATA_KEY, JSON.stringify(records));
 
@@ -1425,19 +1439,23 @@
       }
 
       const rows = fl.map(r => `
-        <tr onclick="openEditModal('${r.id}')">
+        <tr>
           <td class="td-num">${r.num || '-'}</td>
           <td class="td-name">${esc(r.name)}${r.memo ? '<span class="td-memo-icon" title="' + esc(r.memo) + '">📝</span>' : ''}</td>
           <td class="td-affil col-affil">${esc(r.affiliation || '-')}</td>
           <td class="td-amount">${r.amount}만원</td>
           <td class="td-side"><span class="side-badge ${r.side === '신랑' ? 'badge-groom' : 'badge-bride'}">${r.side}</span></td>
+          <td class="td-actions">
+            <button class="tbl-btn-edit" onclick="openEditModal('${r.id}')">수정</button>
+            <button class="tbl-btn-del" onclick="openDeleteModal('${r.id}','${esc(r.name)}')">삭제</button>
+          </td>
         </tr>
       `).join('');
 
       container.innerHTML = `
         <table class="record-table">
           <thead><tr>
-            <th>#</th><th>이름</th><th class="col-affil">소속</th><th class="col-amount">금액</th><th>측</th>
+            <th>#</th><th>이름</th><th class="col-affil">소속</th><th class="col-amount">금액</th><th>측</th><th></th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
