@@ -545,9 +545,12 @@
   </div><!-- /mainApp -->
 
   <script>
-    // ── PWA: Service Worker 등록 ─────────────────────────
+    // ── PWA: Service Worker 강제 갱신 + 등록 ──────────────
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      window.addEventListener('load', async () => {
+        // 기존 SW 강제 업데이트
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) await reg.update();
         navigator.serviceWorker.register('service-worker.js').catch(() => {});
       });
     }
