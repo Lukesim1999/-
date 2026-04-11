@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chukuigeum-cache-v4';
+const CACHE_NAME = 'chukuigeum-cache-v5';
 const URLS_TO_CACHE = [
   './',
   './index.html',
