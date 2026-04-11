@@ -316,7 +316,7 @@
   <div id="roomScreen" class="room-screen">
     <div class="room-logo">💍</div>
     <div class="room-title">축의금 접수</div>
-    <div class="room-subtitle">실시간 공유 접수 시스템</div>
+    <div class="room-subtitle">실시간 공유 접수 시스템 <span style="opacity:0.5;font-size:11px">v2.1</span></div>
     <div class="room-card">
       <div class="room-card-title">새 방 만들기</div>
       <input type="text" class="room-input" id="roomNameInput" placeholder="예: 4월 11일 정호재 결혼" maxlength="30"
@@ -545,13 +545,20 @@
   </div><!-- /mainApp -->
 
   <script>
-    // ── PWA: Service Worker 강제 갱신 + 등록 ──────────────
+    // ── PWA: 기존 Service Worker 완전 제거 후 재등록 ──────
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', async () => {
-        // 기존 SW 강제 업데이트
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) await reg.update();
-        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.unregister());
+      });
+      // 모든 캐시 삭제
+      if (window.caches) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+      }
+      // 새 SW 등록 (1초 딜레이로 정리 완료 후)
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          navigator.serviceWorker.register('service-worker.js').catch(() => {});
+        }, 1000);
       });
     }
 
